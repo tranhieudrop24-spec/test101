@@ -1,0 +1,7 @@
+flask
+pandas
+vnstock==0.2.8.5
+requests
+beautifulsoup4
+plotly
+gunicorn

@@ -1,0 +1,44 @@
+BÁO CÁO PHÂN TÍCH & ĐỀ XUẤT: HỆ THỐNG DEMO TRADING TĨNH (100% FRONT-END)
+
+1. HIỂU VỀ YÊU CẦU CỦA BẠN:
+- Chuyển đổi mô hình: Chuyển từ việc phải chạy server Python (chạy ngầm lấy dữ liệu, lưu JSON) sang một file HTML duy nhất có thể nhấp đúp vào là chạy.
+- Giao diện: Sử dụng iframe để nhúng thẳng trang web của Vietstock (1 tab cho Heatmap, 1 tab cho Biểu đồ Phân tích Kỹ thuật). Không dùng thư viện tự vẽ chart (như Lightweight Charts) để tiết kiệm tài nguyên và công sức lấy dữ liệu.
+- Chức năng giao dịch: Vẫn giữ nguyên phần đặt lệnh (Thị trường, Giới hạn), quản lý danh mục (Holdings) và lệnh chờ (Pending).
+- Điểm mấu chốt: Sự tiện lợi tối đa ("không cần chạy các file rườm rà server python").
+
+2. PHÂN TÍCH VẤN ĐỀ VÀ THÁCH THỨC:
+Vì không còn server Python (app.py) đóng vai trò trung gian lấy dữ liệu và lưu trữ, chúng ta sẽ đối mặt với 2 vấn đề lớn:
+
+Vấn đề 1: Lưu trữ dữ liệu ở đâu? (Portfolio, Watchlist)
+- Giải pháp: Sử dụng `localStorage` của trình duyệt. 
+- Ưu điểm: Không cần file JSON, dữ liệu lưu ngay trên trình duyệt máy bạn. Tắt máy mở lại vẫn còn.
+- Nhược điểm: Nếu bạn xóa lịch sử duyệt web hoặc mở bằng trình duyệt khác/máy khác thì dữ liệu sẽ trống.
+
+Vấn đề 2: Lấy giá hiện tại ở đâu để khớp lệnh và tính PnL? (Vấn đề lớn nhất)
+- Trước đây: Server Python dùng `vnstock` tải giá trực tiếp.
+- Hiện tại: Trình duyệt bị vướng bảo mật CORS (Cross-Origin Resource Sharing) nên không thể trực tiếp gọi API của các công ty chứng khoán để lấy giá được (trình duyệt sẽ chặn). Hơn nữa, vì ta nhúng Vietstock qua iframe, ta CHỈ CÓ THỂ nhìn thấy bằng mắt, chứ code Javascript CỦA TA không thể "đọc" được giá trị từ iframe CỦA VIETSTOCK (do chính sách bảo mật Same-Origin Policy của trình duyệt).
+- Hậu quả: Hệ thống không thể tự động biết giá hiện tại là bao nhiêu để tính Lãi/Lỗ hoặc tự động khớp lệnh chờ.
+
+3. ĐỀ XUẤT CÁCH GIẢI QUYẾT:
+
+Phương án A (Bán tự động - Sổ ghi chép giao dịch):
+- Ứng dụng sẽ đóng vai trò như một "Quyển sổ kế toán thông minh".
+- Khi bạn đặt lệnh (Mua/Bán), giao diện sẽ có một ô "Giá thị trường" cho phép bạn TỰ NHẬP giá hiện tại mà bạn nhìn thấy trên iframe biểu đồ của Vietstock (hoặc tự động lấy giá cũ đã nhập).
+- Khớp lệnh: 
+  + Nếu là lệnh Thị trường: Khớp ngay tại giá bạn vừa nhập.
+  + Nếu là lệnh Giới hạn (Limit): Hệ thống sẽ lưu vào danh sách chờ. Hàng ngày bạn sẽ bấm nút "Khớp lệnh", hệ thống sẽ hiện popup hỏi "Giá cao nhất/Thấp nhất hôm nay là bao nhiêu?". Bạn nhập vào, hệ thống sẽ tự tính toán xem lệnh chờ có chạm mức đó không để tự khớp.
+- Ưu điểm: Code cực kỳ nhẹ, 1 file HTML duy nhất, không cần server.
+
+Phương án B (Dùng API miễn phí không bị chặn CORS):
+- Có một số API hiếm hoi của bên thứ 3 (như Fireant hoặc TCBS) có thể gọi trực tiếp từ trình duyệt mà không bị lỗi CORS (cần test kỹ).
+- Nếu API này hoạt động, ta có thể viết Javascript gọi API lấy giá, giúp hệ thống tự động tính PnL và khớp lệnh như cũ, hoàn toàn không cần server Python.
+
+4. KẾ HOẠCH TRIỂN KHAI TRƯỚC MẮT:
+1. Tạo 1 file HTML tĩnh (`index.html`).
+2. Thiết kế giao diện chia làm 2 phần: 
+   - Phần bên trái (lớn): Các Tab nhúng iframe của Vietstock (Tab 1: Heatmap, Tab 2: Chart Phân tích).
+   - Phần bên phải (nhỏ): Bảng Đặt lệnh và Danh mục đầu tư.
+3. Viết Javascript sử dụng `localStorage` để lưu tiền, danh mục, lệnh chờ.
+4. Triển khai Phương án A (cho phép nhập giá thủ công làm mốc) làm nền tảng vững chắc nhất.
+
+Bạn xem qua bản phân tích này, nếu đồng ý với hướng đi (đặc biệt là cách xử lý Vấn đề 2), tôi sẽ tiến hành tạo file HTML và viết code ngay!

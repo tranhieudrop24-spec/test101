@@ -1,0 +1,44 @@
+{
+    "DXG": {
+        "targets": [
+            14916
+        ],
+        "memo": "weekly, daily context, h4 st, vào hơi fomo, nếu về 14916 thì buy thêm"
+    },
+    "HDG": {
+        "targets": [
+            23212
+        ],
+        "memo": ""
+    },
+    "NTL": {
+        "targets": [
+            16243
+        ],
+        "memo": ""
+    },
+    "FPT": {
+        "targets": [],
+        "memo": "đợi st daily"
+    },
+    "DPM": {
+        "targets": [],
+        "memo": "đợi st h4"
+    },
+    "GVR": {
+        "targets": [],
+        "memo": "hơi muộn vẫn buy được "
+    },
+    "PLX": {
+        "targets": [],
+        "memo": "context monthly đợi st dialy"
+    },
+    "GEX": {
+        "targets": [],
+        "memo": "context monthly đợi h4 hoặc daily st"
+    },
+    "GAS": {
+        "targets": [],
+        "memo": "structure đẹp đợi st daily"
+    }
+}

@@ -1,0 +1,247 @@
+{
+    "balance": 69449600.0,
+    "holdings": [
+        {
+            "ticker": "VCB",
+            "quantity": 200,
+            "avgPrice": 59800.0
+        },
+        {
+            "ticker": "DXG",
+            "quantity": 1000,
+            "avgPrice": 15350.0
+        },
+        {
+            "ticker": "PDR",
+            "quantity": 300,
+            "avgPrice": 16450.0
+        },
+        {
+            "ticker": "HDC",
+            "quantity": 300,
+            "avgPrice": 19100.0
+        },
+        {
+            "ticker": "BID",
+            "quantity": 500,
+            "avgPrice": 40100.0
+        },
+        {
+            "ticker": "CII",
+            "quantity": 300,
+            "avgPrice": 19300.0
+        },
+        {
+            "ticker": "SSI",
+            "quantity": 800,
+            "avgPrice": 27650.0
+        },
+        {
+            "ticker": "MSN",
+            "quantity": 160,
+            "avgPrice": 76800.0
+        },
+        {
+            "ticker": "GVR",
+            "quantity": 150,
+            "avgPrice": 33700.0
+        },
+        {
+            "ticker": "NTL",
+            "quantity": 300,
+            "avgPrice": 16251.0
+        },
+        {
+            "ticker": "DXS",
+            "quantity": 1500,
+            "avgPrice": 7200.0
+        }
+    ],
+    "pending_orders": [
+        {
+            "id": "1777505392975",
+            "ticker": "FPT",
+            "action": "buy",
+            "quantity": 100,
+            "price": 73074.0,
+            "timestamp": "2026-04-30T06:29:52.975275"
+        },
+        {
+            "id": "1777512847383",
+            "ticker": "VJC",
+            "action": "buy",
+            "quantity": 25,
+            "price": 171588.0,
+            "timestamp": "2026-04-30T08:34:07.383270"
+        }
+    ],
+    "trade_log": [
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:11.905598"
+        },
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:18.508286"
+        },
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:33.051779"
+        },
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:33.172074"
+        },
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:33.316639"
+        },
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:34.719758"
+        },
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:35.845212"
+        },
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:36.218398"
+        },
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:36.325584"
+        },
+        {
+            "ticker": "DXG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 15350.0,
+            "timestamp": "2026-04-30T08:02:36.481378"
+        },
+        {
+            "ticker": "PDR",
+            "action": "buy",
+            "quantity": 300,
+            "price": 16450.0,
+            "timestamp": "2026-04-30T08:10:35.817615"
+        },
+        {
+            "ticker": "HDC",
+            "action": "buy",
+            "quantity": 300,
+            "price": 19100.0,
+            "timestamp": "2026-04-30T08:15:49.487398"
+        },
+        {
+            "ticker": "BID",
+            "action": "buy",
+            "quantity": 100,
+            "price": 40100.0,
+            "timestamp": "2026-04-30T08:23:13.489948"
+        },
+        {
+            "ticker": "CII",
+            "action": "buy",
+            "quantity": 300,
+            "price": 19300.0,
+            "timestamp": "2026-04-30T08:25:56.004302"
+        },
+        {
+            "ticker": "SSI",
+            "action": "buy",
+            "quantity": 200,
+            "price": 27650.0,
+            "timestamp": "2026-04-30T08:26:49.524908"
+        },
+        {
+            "ticker": "MSN",
+            "action": "buy",
+            "quantity": 60,
+            "price": 76800.0,
+            "timestamp": "2026-04-30T08:28:20.028123"
+        },
+        {
+            "ticker": "GVR",
+            "action": "buy",
+            "quantity": 150,
+            "price": 33700.0,
+            "timestamp": "2026-04-30T08:30:57.362937"
+        },
+        {
+            "ticker": "VCB",
+            "action": "buy",
+            "quantity": 100,
+            "price": 59800.0,
+            "timestamp": "2026-04-30T08:35:09.680173"
+        },
+        {
+            "ticker": "BID",
+            "action": "buy",
+            "quantity": 400,
+            "price": 40100.0,
+            "timestamp": "2026-04-30T08:36:21.198943"
+        },
+        {
+            "ticker": "SSI",
+            "action": "buy",
+            "quantity": 600,
+            "price": 27650.0,
+            "timestamp": "2026-04-30T08:37:38.457928"
+        },
+        {
+            "ticker": "MSN",
+            "action": "buy",
+            "quantity": 100,
+            "price": 76800.0,
+            "timestamp": "2026-04-30T08:38:32.698210"
+        },
+        {
+            "ticker": "NTL",
+            "action": "buy",
+            "quantity": 300,
+            "price": 16251.0,
+            "timestamp": "2026-04-30T15:13:30.603189"
+        },
+        {
+            "ticker": "DXS",
+            "action": "buy",
+            "quantity": 1500,
+            "price": 7200.0,
+            "timestamp": "2026-04-30T15:13:31.169072"
+        }
+    ],
+    "equity_history": [
+        {
+            "time": "2026-04-30",
+            "equity": 186712600.0
+        }
+    ]
+}

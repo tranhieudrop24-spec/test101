@@ -1,0 +1,6 @@
+ticker,industry,sector
+VHM,Bất động sản,Tài chính
+VIC,Bất động sản,Tài chính
+DIG,Bất động sản,Tài chính
+DXG,Bất động sản,Tài chính
+NVL,Bất động sản,Tài chính

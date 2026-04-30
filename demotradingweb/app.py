@@ -1,0 +1,586 @@
+from flask import Flask, render_template, jsonify, request
+import pandas as pd
+import json
+import os
+import time
+import requests
+from datetime import datetime, timedelta
+from vnstock import stock_historical_data, fr_trade_heatmap, offline_stock_list
+
+app = Flask(__name__)
+
+# Cache sectors
+try:
+    df_sectors_cache = offline_stock_list()
+    df_sectors_cache['sector'] = df_sectors_cache['sector'].fillna('Khác')
+    df_sectors_cache['industry'] = df_sectors_cache['industry'].fillna('Khác')
+except Exception as e:
+    print(f"Failed to load offline stock list: {e}")
+    df_sectors_cache = pd.DataFrame(columns=['ticker', 'sector', 'industry', 'organName', 'organShortName'])
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PORTFOLIO_FILE = os.path.join(BASE_DIR, 'portfolio.json')
+WATCHLIST_FILE = os.path.join(BASE_DIR, 'watchlist.json')
+NOTES_FILE = os.path.join(BASE_DIR, 'notes.json')
+
+# CLOUD STORAGE: JSONBin.io (Optional, for Render.com ephemeral disks)
+JSONBIN_BIN_ID = os.environ.get('JSONBIN_BIN_ID', '')
+JSONBIN_API_KEY = os.environ.get('JSONBIN_API_KEY', '')
+JSONBIN_URL = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}" if JSONBIN_BIN_ID else ""
+
+def init_storage():
+    if not os.path.exists(PORTFOLIO_FILE):
+        with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
+            json.dump({
+                "balance": 200000000, 
+                "holdings": [], 
+                "pending_orders": [], 
+                "trade_log": [],
+                "equity_history": [{"time": datetime.now().strftime('%Y-%m-%d'), "equity": 200000000}]
+            }, f)
+    else:
+        with open(PORTFOLIO_FILE, 'r', encoding='utf-8') as f:
+            port = json.load(f)
+        dirty = False
+        if "pending_orders" not in port:
+            port["pending_orders"] = []; dirty = True
+        if "trade_log" not in port:
+            port["trade_log"] = []; dirty = True
+        if "equity_history" not in port:
+            port["equity_history"] = [{"time": datetime.now().strftime('%Y-%m-%d'), "equity": port.get('balance', 200000000)}]; dirty = True
+        if dirty:
+            with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
+                json.dump(port, f, indent=4)
+                
+    if not os.path.exists(WATCHLIST_FILE):
+        with open(WATCHLIST_FILE, 'w', encoding='utf-8') as f:
+            json.dump(["FPT", "VCB", "HPG", "VHM", "VIC", "SSI", "TCB", "MWG"], f)
+    if not os.path.exists(NOTES_FILE):
+        with open(NOTES_FILE, 'w', encoding='utf-8') as f:
+            json.dump({}, f)
+
+init_storage()
+
+def get_notes():
+    if JSONBIN_URL:
+        cloud_data = fetch_cloud_state()
+        if cloud_data and 'notes' in cloud_data:
+            return cloud_data['notes']
+    try:
+        with open(NOTES_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_notes(data):
+    with open(NOTES_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+    if JSONBIN_URL:
+        cloud_data = fetch_cloud_state() or {}
+        cloud_data['notes'] = data
+        save_cloud_state(cloud_data)
+
+def fetch_cloud_state():
+    if not JSONBIN_URL: return None
+    try:
+        res = requests.get(JSONBIN_URL, headers={'X-Master-Key': JSONBIN_API_KEY})
+        if res.status_code == 200:
+            return res.json().get('record', {})
+    except Exception as e:
+        print(f"Cloud fetch error: {e}")
+    return None
+
+def save_cloud_state(data):
+    if not JSONBIN_URL: return
+    try:
+        requests.put(JSONBIN_URL, headers={'X-Master-Key': JSONBIN_API_KEY, 'Content-Type': 'application/json'}, json=data)
+    except Exception as e:
+        print(f"Cloud save error: {e}")
+
+def get_portfolio():
+    if JSONBIN_URL:
+        cloud_data = fetch_cloud_state()
+        if cloud_data and 'portfolio' in cloud_data:
+            return cloud_data['portfolio']
+    with open(PORTFOLIO_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def save_portfolio(data):
+    with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4)
+    if JSONBIN_URL:
+        cloud_data = fetch_cloud_state() or {}
+        cloud_data['portfolio'] = data
+        save_cloud_state(cloud_data)
+
+def get_watchlist():
+    if JSONBIN_URL:
+        cloud_data = fetch_cloud_state()
+        if cloud_data and 'watchlist' in cloud_data:
+            return cloud_data['watchlist']
+    with open(WATCHLIST_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def save_watchlist(data):
+    with open(WATCHLIST_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4)
+    if JSONBIN_URL:
+        cloud_data = fetch_cloud_state() or {}
+        cloud_data['watchlist'] = data
+        save_cloud_state(cloud_data)
+
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/api/price/<ticker>')
+def price_api(ticker):
+    """Get latest price for a ticker."""
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
+    try:
+        df = stock_historical_data(
+            symbol=ticker.upper(),
+            start_date=start_date,
+            end_date=end_date,
+            resolution="1D",
+            type="stock",
+            beautify=True
+        )
+        if df is None or df.empty:
+            return jsonify({"price": 0, "change": 0})
+        last = df.iloc[-1]
+        price = float(last['close'])
+        prev = float(df.iloc[-2]['close']) if len(df) > 1 else price
+        if price < 1000:
+            price *= 1000
+            prev *= 1000
+        change_pct = round((price - prev) / prev * 100, 2) if prev != 0 else 0
+        return jsonify({"price": price, "change": change_pct, "ticker": ticker.upper()})
+    except Exception as e:
+        print(f"[price_api error] {e}")
+        return jsonify({"price": 0, "change": 0})
+
+@app.route('/api/stock/<ticker>')
+def stock_api(ticker):
+    res = request.args.get('res', '1D') # 1D, 1H, 15, 4H, 1W, 1M
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    
+    # Map resolutions
+    fetch_res = res
+    if res == '4H': fetch_res = '1H'
+    elif res in ['1W', '1M']: fetch_res = '1D'
+    
+    # Simplified logic: Always start from 2023 as requested
+    start_date = '2023-01-01'
+    
+    try:
+        # Reverting to basic fetching
+        df = stock_historical_data(symbol=ticker.upper(), start_date=start_date, end_date=end_date, resolution=fetch_res, type="stock", beautify=True)
+        
+        if df is not None and not df.empty:
+            print(f"[stock_api] {ticker} res={res} fetch_res={fetch_res} | Got {len(df)} rows | Range: {df['time'].iloc[0]} -> {df['time'].iloc[-1]}")
+        
+        if df is None or df.empty:
+            return jsonify({"error": "No data available", "data": []})
+            
+        df = df[['time', 'open', 'high', 'low', 'close', 'volume']]
+        df['time'] = pd.to_datetime(df['time'])
+        
+        # Simple Resample logic
+        if res == '4H':
+            df = df.set_index('time').resample('4h', offset='1h').agg({
+                'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'
+            }).dropna().reset_index()
+        elif res == '1W':
+            df = df.set_index('time').resample('W-MON').agg({
+                'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'
+            }).dropna().reset_index()
+        elif res == '1M':
+            df = df.set_index('time').resample('MS').agg({ 
+                'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'
+            }).dropna().reset_index()
+        
+        # Time Formatting
+        if res in ['1D', '1W', '1M']:
+            df['time'] = df['time'].dt.strftime('%Y-%m-%d')
+        else:
+            # The "OK" way: use timestamp and subtract 7 hours
+            df['time'] = df['time'].apply(lambda x: int(x.timestamp()) - 7*3600)
+
+        # Fix price scaling
+        if not df.empty and df['close'].iloc[0] < 1000:
+            for col in ['open', 'high', 'low', 'close']:
+                df[col] = df[col] * 1000
+                
+        return jsonify({"error": None, "data": df.to_dict(orient='records')})
+    except Exception as e:
+        print(f"[stock_api error] {e}")
+        return jsonify({"error": str(e), "data": []})
+
+@app.route('/api/market/all')
+def market_all():
+    try:
+        df = fr_trade_heatmap(symbol='HOSE', report_type='Value')
+        if df is None or df.empty: return jsonify({"labels":[], "parents":[], "values":[], "colors":[], "customdata":[]})
+        
+        cols = {
+            'stockSymbol': 'ticker',
+            'companyNameVi': 'name',
+            'matchedPrice': 'price',
+            'priceChangePercent': 'change',
+            'nmTotalTradedValue': 'value',
+        }
+        df_clean = df[list(cols.keys())].rename(columns=cols)
+        df_clean['price'] = pd.to_numeric(df_clean['price'], errors='coerce')
+        df_clean['change'] = pd.to_numeric(df_clean['change'], errors='coerce')
+        df_clean['value'] = pd.to_numeric(df_clean['value'], errors='coerce')
+        df_clean = df_clean.fillna(0)
+        
+        # Sort and take top 150 BEFORE merging to ensure parent/child values match perfectly
+        df_clean = df_clean.sort_values(by='value', ascending=False).head(150)
+        
+        # Merge with industry (more granular than sector, e.g. "Bất động sản", "Ngân hàng")
+        df_merged = pd.merge(df_clean, df_sectors_cache[['ticker', 'industry']], on='ticker', how='left')
+        df_merged['industry'] = df_merged['industry'].fillna('Khác')
+        df_merged = df_merged.rename(columns={'industry': 'sector'}) # Keep 'sector' name for frontend compatibility
+        
+        # Get unique sectors for frontend filtering
+        sectors_list = sorted(list(df_merged['sector'].unique()))
+        
+        # Build Plotly Treemap data
+        # Root node
+        labels = ["HOSE"]
+        parents = [""]
+        values = [df_merged['value'].sum()]
+        colors = [0]
+        customdata = [{"ticker": "", "price": 0, "change": 0}]
+        
+        # Level 1: Sectors
+        sector_grouped = df_merged.groupby('sector')['value'].sum().reset_index()
+        for _, row in sector_grouped.iterrows():
+            if row['value'] > 0:
+                labels.append(row['sector'])
+                parents.append("HOSE")
+                values.append(row['value'])
+                colors.append(0) # Sectors inherit color from children mostly or set 0
+                customdata.append({"ticker": "", "price": 0, "change": 0})
+                
+        # Level 2: Tickers
+        for _, row in df_merged.iterrows():
+            if row['value'] > 0:
+                labels.append(row['ticker'])
+                parents.append(row['sector'])
+                values.append(row['value'])
+                colors.append(row['change'])
+                customdata.append({"ticker": row['ticker'], "price": row['price'], "change": row['change']})
+        
+        return jsonify({
+            "labels": labels,
+            "parents": parents,
+            "values": values,
+            "colors": colors,
+            "customdata": customdata,
+            "sectors_list": sectors_list
+        })
+    except Exception as e:
+        print(f"Market error: {e}")
+        return jsonify({"labels":[], "parents":[], "values":[], "colors":[], "customdata":[], "sectors_list":[]})
+
+@app.route('/api/company/info/<ticker>')
+def company_info(ticker):
+    try:
+        info = df_sectors_cache[df_sectors_cache['ticker'] == ticker.upper()]
+        if info.empty:
+            return jsonify({"status": "error", "message": "Không tìm thấy thông tin"})
+        info = info.iloc[0]
+        return jsonify({
+            "status": "success",
+            "data": {
+                "ticker": info.get('ticker', ''),
+                "name": info.get('organName', ''),
+                "shortName": info.get('organShortName', ''),
+                "industry": info.get('industry', 'Khác'),
+                "sector": info.get('sector', 'Khác'),
+                "group": info.get('comGroupCode', '')
+            }
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/api/watchlist', methods=['GET', 'POST', 'DELETE'])
+def watchlist_api():
+    watchlist = get_watchlist()
+    if request.method == 'POST':
+        data = request.json
+        ticker = data.get('ticker', '').upper().strip()
+        if ticker and ticker not in watchlist:
+            watchlist.append(ticker)
+            save_watchlist(watchlist)
+        return jsonify(watchlist)
+    elif request.method == 'DELETE':
+        ticker = request.json.get('ticker', '').upper()
+        if ticker in watchlist:
+            watchlist.remove(ticker)
+            save_watchlist(watchlist)
+        return jsonify(watchlist)
+    return jsonify(watchlist)
+
+@app.route('/api/notes/<ticker>', methods=['GET', 'POST', 'DELETE'])
+def notes_api(ticker):
+    """Per-ticker trading notes: buy targets, reminders, strategies."""
+    ticker = ticker.upper()
+    notes = get_notes()
+    if request.method == 'GET':
+        return jsonify(notes.get(ticker, {"targets": [], "memo": ""}))
+    elif request.method == 'POST':
+        data = request.json
+        notes[ticker] = data
+        save_notes(notes)
+        return jsonify({"status": "ok"})
+    elif request.method == 'DELETE':
+        notes.pop(ticker, None)
+        save_notes(notes)
+        return jsonify({"status": "ok"})
+
+
+@app.route('/api/portfolio', methods=['GET', 'POST'])
+def portfolio_api():
+    portfolio = get_portfolio()
+    if request.method == 'GET':
+        # Attach industry info to holdings for frontend analysis
+        for holding in portfolio.get('holdings', []):
+            info = df_sectors_cache[df_sectors_cache['ticker'] == holding['ticker']]
+            holding['industry'] = info.iloc[0]['industry'] if not info.empty else 'Khác'
+        return jsonify(portfolio)
+        
+    if request.method == 'POST':
+        action = request.json.get('action')
+        ticker = request.json.get('ticker', '').upper()
+        quantity = int(request.json.get('quantity', 0))
+        price = float(request.json.get('price', 0))
+        order_type = request.json.get('type', 'market')
+
+        if quantity <= 0 or price <= 0:
+            return jsonify({"status": "error", "message": "Số lượng và giá không hợp lệ"}), 400
+
+        cost = quantity * price
+
+        if order_type == 'limit':
+            order_id = str(int(time.time() * 1000))
+            if action == 'buy':
+                if portfolio['balance'] < cost:
+                    return jsonify({"status": "error", "message": f"Không đủ tiền. Cần {cost:,.0f}₫"}), 400
+                portfolio['balance'] -= cost
+                portfolio['pending_orders'].append({
+                    "id": order_id, "ticker": ticker, "action": "buy", "quantity": quantity, "price": price, "timestamp": datetime.now().isoformat()
+                })
+                save_portfolio(portfolio)
+                return jsonify({"status": "success", "message": f"Đã đặt lệnh CHỜ MUA {quantity} {ticker} giá {price:,.0f}₫", "portfolio": portfolio})
+            
+            elif action == 'sell':
+                holding = next((h for h in portfolio['holdings'] if h['ticker'] == ticker), None)
+                pending_sells = sum(o['quantity'] for o in portfolio['pending_orders'] if o['ticker'] == ticker and o['action'] == 'sell')
+                available_qty = holding['quantity'] - pending_sells if holding else 0
+                
+                if available_qty < quantity:
+                    return jsonify({"status": "error", "message": f"Không đủ CP khả dụng. Khả dụng: {available_qty}"}), 400
+                
+                portfolio['pending_orders'].append({
+                    "id": order_id, "ticker": ticker, "action": "sell", "quantity": quantity, "price": price, "timestamp": datetime.now().isoformat()
+                })
+                save_portfolio(portfolio)
+                return jsonify({"status": "success", "message": f"Đã đặt lệnh CHỜ BÁN {quantity} {ticker} giá {price:,.0f}₫", "portfolio": portfolio})
+
+        # Market Order processing
+        elif order_type == 'market':
+            if action == 'buy':
+                if portfolio['balance'] < cost:
+                    return jsonify({"status": "error", "message": f"Không đủ tiền. Cần {cost:,.0f}₫, còn {portfolio['balance']:,.0f}₫"}), 400
+                portfolio['balance'] -= cost
+                found = False
+                for item in portfolio['holdings']:
+                    if item['ticker'] == ticker:
+                        total_qty = item['quantity'] + quantity
+                        item['avgPrice'] = (item['avgPrice'] * item['quantity'] + cost) / total_qty
+                        item['quantity'] = total_qty
+                        found = True
+                        break
+                if not found:
+                    portfolio['holdings'].append({"ticker": ticker, "quantity": quantity, "avgPrice": price})
+                
+                # Log trade
+                portfolio['trade_log'].append({
+                    "ticker": ticker, "action": "buy", "quantity": quantity, "price": price, "timestamp": datetime.now().isoformat()
+                })
+                save_portfolio(portfolio)
+                return jsonify({"status": "success", "message": f"Khớp lệnh MUA {quantity} {ticker}!", "portfolio": portfolio})
+
+            elif action == 'sell':
+                holding = next((h for h in portfolio['holdings'] if h['ticker'] == ticker), None)
+                pending_sells = sum(o['quantity'] for o in portfolio['pending_orders'] if o['ticker'] == ticker and o['action'] == 'sell')
+                available_qty = holding['quantity'] - pending_sells if holding else 0
+
+                if available_qty < quantity:
+                    return jsonify({"status": "error", "message": f"Không đủ CP khả dụng. Khả dụng: {available_qty}"}), 400
+                    
+                holding['quantity'] -= quantity
+                portfolio['balance'] += quantity * price
+                
+                # Log trade
+                portfolio['trade_log'].append({
+                    "ticker": ticker, "action": "sell", "quantity": quantity, "price": price, "timestamp": datetime.now().isoformat()
+                })
+                
+                portfolio['holdings'] = [h for h in portfolio['holdings'] if h['quantity'] > 0]
+                save_portfolio(portfolio)
+                return jsonify({"status": "success", "message": f"Khớp lệnh BÁN {quantity} {ticker}!", "portfolio": portfolio})
+
+        return jsonify({"status": "error", "message": "Action không hợp lệ"}), 400
+
+    return jsonify(portfolio)
+
+
+@app.route('/api/portfolio/cancel', methods=['POST'])
+def cancel_order_api():
+    portfolio = get_portfolio()
+    order_id = request.json.get('id')
+    
+    order = next((o for o in portfolio['pending_orders'] if o['id'] == order_id), None)
+    if not order:
+        return jsonify({"status": "error", "message": "Không tìm thấy lệnh chờ"}), 404
+        
+    portfolio['pending_orders'] = [o for o in portfolio['pending_orders'] if o['id'] != order_id]
+    
+    if order['action'] == 'buy':
+        # Refund balance
+        portfolio['balance'] += order['quantity'] * order['price']
+    # If sell, we just remove it from pending_orders (shares are no longer locked)
+        
+    save_portfolio(portfolio)
+    return jsonify({"status": "success", "message": "Đã hủy lệnh thành công", "portfolio": portfolio})
+
+
+@app.route('/api/portfolio/set_sl', methods=['POST'])
+def set_stop_loss_api():
+    """Set or clear stop-loss for a holding."""
+    portfolio = get_portfolio()
+    ticker = request.json.get('ticker', '').upper()
+    sl_price = request.json.get('stop_loss')  # None = clear SL
+
+    holding = next((h for h in portfolio['holdings'] if h['ticker'] == ticker), None)
+    if not holding:
+        return jsonify({"status": "error", "message": f"Không có vị thế {ticker}"}), 404
+
+    if sl_price is None or sl_price == 0:
+        holding.pop('stop_loss', None)
+        msg = f"Đã xóa SL của {ticker}"
+    else:
+        holding['stop_loss'] = float(sl_price)
+        msg = f"Đã đặt SL {ticker} tại {float(sl_price):,.0f}₫"
+
+    save_portfolio(portfolio)
+    return jsonify({"status": "success", "message": msg, "portfolio": portfolio})
+
+
+
+
+@app.route('/api/match_orders', methods=['POST'])
+def match_orders_api():
+    portfolio = get_portfolio()
+    if not portfolio['pending_orders']:
+        return jsonify({"status": "success", "message": "Không có lệnh chờ nào cần khớp", "portfolio": portfolio})
+        
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
+    matched_count = 0
+    messages = []
+    
+    # We copy the list to avoid modifying while iterating
+    pending_orders = portfolio['pending_orders'][:]
+    remaining_orders = []
+    
+    # Cache daily prices to avoid duplicate API calls
+    day_prices = {}
+    
+    for order in pending_orders:
+        ticker = order['ticker']
+        if ticker not in day_prices:
+            try:
+                df = stock_historical_data(symbol=ticker, start_date=start_date, end_date=end_date, resolution="1D", type="stock", beautify=True)
+                if df is not None and not df.empty:
+                    last_row = df.iloc[-1]
+                    low = float(last_row['low'])
+                    high = float(last_row['high'])
+                    if low < 1000:
+                        low *= 1000
+                        high *= 1000
+                    day_prices[ticker] = {'low': low, 'high': high}
+                else:
+                    day_prices[ticker] = None
+            except Exception as e:
+                day_prices[ticker] = None
+                
+        price_data = day_prices.get(ticker)
+        matched = False
+        
+        if price_data:
+            if order['action'] == 'buy' and order['price'] >= price_data['low']:
+                # Buy matches if limit price is greater than or equal to day's low
+                found = False
+                for item in portfolio['holdings']:
+                    if item['ticker'] == ticker:
+                        total_qty = item['quantity'] + order['quantity']
+                        item['avgPrice'] = (item['avgPrice'] * item['quantity'] + order['quantity'] * order['price']) / total_qty
+                        item['quantity'] = total_qty
+                        found = True
+                        break
+                if not found:
+                    portfolio['holdings'].append({"ticker": ticker, "quantity": order['quantity'], "avgPrice": order['price']})
+                
+                # Log trade
+                portfolio.setdefault('trade_log', []).append({
+                    "ticker": ticker, "action": "buy", "quantity": order['quantity'], "price": order['price'], "timestamp": datetime.now().isoformat()
+                })
+                
+                matched = True
+                matched_count += 1
+                messages.append(f"Khớp mua {order['quantity']} {ticker} giá {order['price']:,.0f}₫")
+                
+            elif order['action'] == 'sell' and order['price'] <= price_data['high']:
+                # Sell matches if limit price is less than or equal to day's high
+                holding = next((h for h in portfolio['holdings'] if h['ticker'] == ticker), None)
+                if holding and holding['quantity'] >= order['quantity']:
+                    holding['quantity'] -= order['quantity']
+                    portfolio['balance'] += order['quantity'] * order['price']
+                    
+                    # Log trade
+                    portfolio.setdefault('trade_log', []).append({
+                        "ticker": ticker, "action": "sell", "quantity": order['quantity'], "price": order['price'], "timestamp": datetime.now().isoformat()
+                    })
+
+                    matched = True
+                    matched_count += 1
+                    messages.append(f"Khớp bán {order['quantity']} {ticker} giá {order['price']:,.0f}₫")
+                else:
+                    # Should not happen because we check available qty when placing order
+                    pass
+                    
+        if not matched:
+            remaining_orders.append(order)
+            
+    portfolio['pending_orders'] = remaining_orders
+    # Clean up empty holdings
+    portfolio['holdings'] = [h for h in portfolio['holdings'] if h['quantity'] > 0]
+    
+    save_portfolio(portfolio)
+    msg = f"Đã khớp {matched_count} lệnh."
+    if messages:
+        msg += " " + ", ".join(messages)
+    return jsonify({"status": "success", "message": msg, "portfolio": portfolio})
+
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)

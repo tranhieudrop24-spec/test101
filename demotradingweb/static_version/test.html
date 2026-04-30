@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h3>API CORS Test</h3>
+    <div id="res">Loading...</div>
+    <script>
+        async function test() {
+            try {
+                const url = 'https://finfo-api.vndirect.com.vn/v4/stock_prices?sort=date&q=code:FPT~date:gte:2026-04-01&size=1';
+                const r = await fetch(url);
+                const data = await r.json();
+                document.getElementById('res').innerText = 'VNDirect API Success: ' + JSON.stringify(data);
+            } catch (e) {
+                document.getElementById('res').innerText = 'VNDirect API Failed: ' + e.message;
+            }
+        }
+        test();
+    </script>
+</body>
+</html>
