@@ -63,9 +63,11 @@ def init_storage():
 init_storage()
 
 import threading
+import time
 
 # Caching and State
 CHART_CACHE = {}
+MARKET_MAP_CACHE = {'data': None, 'time': 0}
 
 def get_notes():
     try:
@@ -169,6 +171,41 @@ def bg_chart_updater():
                     except Exception as e:
                         print(f"Bg updater error for {ticker} {res}: {e}")
                     time.sleep(1) # avoid rate limit
+            
+            # Fetch and Cache Market Map
+            try:
+                df_heatmap = fr_trade_heatmap(symbol='HOSE', report_type='Value')
+                if df_heatmap is not None and not df_heatmap.empty:
+                    cols = {'stockSymbol':'ticker', 'companyNameVi':'name', 'matchedPrice':'price', 'priceChangePercent':'change', 'nmTotalTradedValue':'value'}
+                    df_clean = df_heatmap[list(cols.keys())].rename(columns=cols)
+                    df_clean['price'] = pd.to_numeric(df_clean['price'], errors='coerce')
+                    df_clean['change'] = pd.to_numeric(df_clean['change'], errors='coerce')
+                    df_clean['value'] = pd.to_numeric(df_clean['value'], errors='coerce')
+                    df_clean = df_clean.fillna(0).sort_values(by='value', ascending=False).head(150)
+                    df_merged = pd.merge(df_clean, df_sectors_cache[['ticker', 'industry']], on='ticker', how='left')
+                    df_merged['industry'] = df_merged['industry'].fillna('Khác')
+                    df_merged = df_merged.rename(columns={'industry': 'sector'})
+                    
+                    sectors_list = sorted(list(df_merged['sector'].unique()))
+                    labels, parents, values, colors, customdata = ["HOSE"], [""], [df_merged['value'].sum()], [0], [{"ticker": "", "price": 0, "change": 0}]
+                    
+                    sector_grouped = df_merged.groupby('sector')['value'].sum().reset_index()
+                    for _, row in sector_grouped.iterrows():
+                        if row['value'] > 0:
+                            labels.append(row['sector']); parents.append("HOSE"); values.append(row['value']); colors.append(0); customdata.append({"ticker": "", "price": 0, "change": 0})
+                            
+                    for _, row in df_merged.iterrows():
+                        if row['value'] > 0:
+                            labels.append(row['ticker']); parents.append(row['sector']); values.append(row['value']); colors.append(row['change']); customdata.append({"ticker": row['ticker'], "price": row['price'], "change": row['change']})
+                    
+                    MARKET_MAP_CACHE['data'] = {
+                        "labels": labels, "parents": parents, "values": values,
+                        "colors": colors, "customdata": customdata, "sectors_list": sectors_list
+                    }
+                    MARKET_MAP_CACHE['time'] = time.time()
+            except Exception as e:
+                print(f"Bg updater heatmap error: {e}")
+                
         except Exception as e:
             print(f"Bg updater loop error: {e}")
         # Sleep for 4 hours
@@ -306,6 +343,10 @@ def stock_api(ticker):
 
 @app.route('/api/market/all')
 def market_all():
+    # Use cache if less than 4 hours old
+    if MARKET_MAP_CACHE['data'] and (time.time() - MARKET_MAP_CACHE['time']) < 14400:
+        return jsonify(MARKET_MAP_CACHE['data'])
+        
     try:
         df = fr_trade_heatmap(symbol='HOSE', report_type='Value')
         if df is None or df.empty: return jsonify({"labels":[], "parents":[], "values":[], "colors":[], "customdata":[]})
@@ -323,52 +364,28 @@ def market_all():
         df_clean['value'] = pd.to_numeric(df_clean['value'], errors='coerce')
         df_clean = df_clean.fillna(0)
         
-        # Sort and take top 150 BEFORE merging to ensure parent/child values match perfectly
         df_clean = df_clean.sort_values(by='value', ascending=False).head(150)
-        
-        # Merge with industry (more granular than sector, e.g. "Bất động sản", "Ngân hàng")
         df_merged = pd.merge(df_clean, df_sectors_cache[['ticker', 'industry']], on='ticker', how='left')
         df_merged['industry'] = df_merged['industry'].fillna('Khác')
-        df_merged = df_merged.rename(columns={'industry': 'sector'}) # Keep 'sector' name for frontend compatibility
-        
-        # Get unique sectors for frontend filtering
+        df_merged = df_merged.rename(columns={'industry': 'sector'})
         sectors_list = sorted(list(df_merged['sector'].unique()))
         
-        # Build Plotly Treemap data
-        # Root node
-        labels = ["HOSE"]
-        parents = [""]
-        values = [df_merged['value'].sum()]
-        colors = [0]
-        customdata = [{"ticker": "", "price": 0, "change": 0}]
-        
-        # Level 1: Sectors
+        labels, parents, values, colors, customdata = ["HOSE"], [""], [df_merged['value'].sum()], [0], [{"ticker": "", "price": 0, "change": 0}]
         sector_grouped = df_merged.groupby('sector')['value'].sum().reset_index()
         for _, row in sector_grouped.iterrows():
             if row['value'] > 0:
-                labels.append(row['sector'])
-                parents.append("HOSE")
-                values.append(row['value'])
-                colors.append(0) # Sectors inherit color from children mostly or set 0
-                customdata.append({"ticker": "", "price": 0, "change": 0})
-                
-        # Level 2: Tickers
+                labels.append(row['sector']); parents.append("HOSE"); values.append(row['value']); colors.append(0); customdata.append({"ticker": "", "price": 0, "change": 0})
         for _, row in df_merged.iterrows():
             if row['value'] > 0:
-                labels.append(row['ticker'])
-                parents.append(row['sector'])
-                values.append(row['value'])
-                colors.append(row['change'])
-                customdata.append({"ticker": row['ticker'], "price": row['price'], "change": row['change']})
+                labels.append(row['ticker']); parents.append(row['sector']); values.append(row['value']); colors.append(row['change']); customdata.append({"ticker": row['ticker'], "price": row['price'], "change": row['change']})
         
-        return jsonify({
-            "labels": labels,
-            "parents": parents,
-            "values": values,
-            "colors": colors,
-            "customdata": customdata,
-            "sectors_list": sectors_list
-        })
+        result = {
+            "labels": labels, "parents": parents, "values": values,
+            "colors": colors, "customdata": customdata, "sectors_list": sectors_list
+        }
+        MARKET_MAP_CACHE['data'] = result
+        MARKET_MAP_CACHE['time'] = time.time()
+        return jsonify(result)
     except Exception as e:
         print(f"Market error: {e}")
         return jsonify({"labels":[], "parents":[], "values":[], "colors":[], "customdata":[], "sectors_list":[]})

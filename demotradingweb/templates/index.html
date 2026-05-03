@@ -517,8 +517,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .pnl-badge.up { background: rgba(34,197,94,0.15); color: var(--up); }
 .pnl-badge.down { background: rgba(239,68,68,0.15); color: var(--down); }
 
+/* MIDDLE ROW LAYOUT */
+.pv-middle-row { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
+.holdings-section { margin-bottom: 0; }
+.growth-section { display: flex; flex-direction: column; gap: 16px; justify-content: center; }
+.growth-card { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-align: center; display: flex; flex-direction: column; justify-content: center; flex: 1; }
+.growth-card .lbl { font-size: 0.85rem; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.growth-card .val { font-size: 2.2rem; font-family: 'Rajdhani', sans-serif; font-weight: 700; }
+.growth-card.up .val { color: var(--up); }
+.growth-card.down .val { color: var(--down); }
+
 /* HOLDINGS CARDS */
-.holdings-section { margin-bottom: 24px; }
 .holdings-header {
   display: flex; justify-content: space-between; align-items: center;
   padding: 12px 16px; background: rgba(168,85,247,0.08); border: 1px solid var(--border);
@@ -801,31 +810,48 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
       </div>
     </div>
 
-    <!-- HOLDINGS SECTION -->
-    <div class="holdings-section">
-      <div class="holdings-header">
-        <h3>Holdings</h3>
-        <span class="holdings-count" id="pd-hold-count">0 positions</span>
+    <!-- MIDDLE ROW -->
+    <div class="pv-middle-row">
+      <!-- HOLDINGS SECTION -->
+      <div class="holdings-section">
+        <div class="holdings-header">
+          <h3>Holdings</h3>
+          <span class="holdings-count" id="pd-hold-count">0 positions</span>
+        </div>
+        <div class="holdings-table-wrap">
+          <table class="holdings-table">
+            <thead>
+              <tr>
+                <th>Ticker / Sector</th>
+                <th>Qty</th>
+                <th>Avg Cost</th>
+                <th>Last Price</th>
+                <th>Mkt Value</th>
+                <th>PnL (&#8363;)</th>
+                <th>PnL %</th>
+                <th>Weight</th>
+              </tr>
+            </thead>
+            <tbody id="pd-holdings-tbody">
+              <tr><td colspan="8" class="holdings-empty">Loading...</td></tr>
+            </tbody>
+            <tfoot id="pd-holdings-tfoot"></tfoot>
+          </table>
+        </div>
       </div>
-      <div class="holdings-table-wrap">
-        <table class="holdings-table">
-          <thead>
-            <tr>
-              <th>Ticker / Sector</th>
-              <th>Qty</th>
-              <th>Avg Cost</th>
-              <th>Last Price</th>
-              <th>Mkt Value</th>
-              <th>PnL (&#8363;)</th>
-              <th>PnL %</th>
-              <th>Weight</th>
-            </tr>
-          </thead>
-          <tbody id="pd-holdings-tbody">
-            <tr><td colspan="8" class="holdings-empty">Loading...</td></tr>
-          </tbody>
-          <tfoot id="pd-holdings-tfoot"></tfoot>
-        </table>
+      
+      <!-- GROWTH SECTION -->
+      <div class="growth-section">
+        <div class="growth-card" id="gc-daily">
+          <div class="lbl">Tăng trưởng ngày</div>
+          <div class="val" id="pd-daily-growth">0.00%</div>
+          <div style="font-size:0.85rem;margin-top:6px;color:var(--dim)" id="pd-daily-value">0₫</div>
+        </div>
+        <div class="growth-card" id="gc-total">
+          <div class="lbl">Tổng tăng trưởng</div>
+          <div class="val" id="pd-total-growth">0.00%</div>
+          <div style="font-size:0.85rem;margin-top:6px;color:var(--dim)" id="pd-total-value">0₫</div>
+        </div>
       </div>
     </div>
     
@@ -1993,6 +2019,7 @@ async function renderPortfolioDashboard() {
     // ── Step 2: Build data ──
     let totalStockValue = 0;
     let totalInvested = 0;
+    let totalDailyPnL = 0;
     const sectorMap = {};
     const tickerMap = {};
     const holdingsData = [];
@@ -2004,6 +2031,11 @@ async function renderPortfolioDashboard() {
       const curVal = h.quantity * curPrice;
       const invVal = h.quantity * h.avgPrice;
       const isPriceLive = !!(cached && cached.price > 0);
+      
+      const changePct = cached && cached.change ? cached.change : 0;
+      const prevPrice = curPrice / (1 + changePct/100);
+      const dailyPnL = h.quantity * (curPrice - prevPrice);
+      totalDailyPnL += dailyPnL;
       
       totalStockValue += curVal;
       totalInvested += invVal;
@@ -2086,6 +2118,25 @@ async function renderPortfolioDashboard() {
         ? `${unrealizedPnL >= 0 ? '+' : ''}${stockRet}%`
         : '—';
       stockRetEl.style.color = unrealizedPnL >= 0 ? 'var(--up)' : 'var(--down)';
+    }
+
+    // New Growth UI
+    const initialEq = 200000000;
+    const totalGrowthVal = totalEq - initialEq;
+    const totalGrowthPct = ((totalGrowthVal) / initialEq * 100).toFixed(2);
+    const dailyGrowthPct = (totalEq - totalDailyPnL) > 0 ? ((totalDailyPnL) / (totalEq - totalDailyPnL) * 100).toFixed(2) : "0.00";
+    
+    const dGrowthEl = document.getElementById('pd-daily-growth');
+    if (dGrowthEl) {
+        dGrowthEl.textContent = `${totalDailyPnL >= 0 ? '+' : ''}${dailyGrowthPct}%`;
+        dGrowthEl.parentElement.className = `growth-card ${totalDailyPnL >= 0 ? 'up' : 'down'}`;
+        document.getElementById('pd-daily-value').textContent = `${totalDailyPnL >= 0 ? '+' : ''}${fmt(Math.abs(totalDailyPnL))}`;
+    }
+    const tGrowthEl = document.getElementById('pd-total-growth');
+    if (tGrowthEl) {
+        tGrowthEl.textContent = `${totalGrowthVal >= 0 ? '+' : ''}${totalGrowthPct}%`;
+        tGrowthEl.parentElement.className = `growth-card ${totalGrowthVal >= 0 ? 'up' : 'down'}`;
+        document.getElementById('pd-total-value').textContent = `${totalGrowthVal >= 0 ? '+' : ''}${fmt(Math.abs(totalGrowthVal))}`;
     }
 
     // Realized PnL card
