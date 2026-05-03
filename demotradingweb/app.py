@@ -62,11 +62,12 @@ def init_storage():
 
 init_storage()
 
+import threading
+
+# Caching and State
+CHART_CACHE = {}
+
 def get_notes():
-    if JSONBIN_URL:
-        cloud_data = fetch_cloud_state()
-        if cloud_data and 'notes' in cloud_data:
-            return cloud_data['notes']
     try:
         with open(NOTES_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -76,10 +77,7 @@ def get_notes():
 def save_notes(data):
     with open(NOTES_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
-    if JSONBIN_URL:
-        cloud_data = fetch_cloud_state() or {}
-        cloud_data['notes'] = data
-        save_cloud_state(cloud_data)
+    save_cloud_state_bg()
 
 def fetch_cloud_state():
     if not JSONBIN_URL: return None
@@ -91,49 +89,113 @@ def fetch_cloud_state():
         print(f"Cloud fetch error: {e}")
     return None
 
-def save_cloud_state(data):
+def save_cloud_state_bg():
     if not JSONBIN_URL: return
-    try:
-        requests.put(JSONBIN_URL, headers={'X-Master-Key': JSONBIN_API_KEY, 'Content-Type': 'application/json'}, json=data)
-    except Exception as e:
-        print(f"Cloud save error: {e}")
+    def run():
+        try:
+            data = {
+                'portfolio': get_portfolio(),
+                'watchlist': get_watchlist(),
+                'notes': get_notes()
+            }
+            requests.put(JSONBIN_URL, headers={'X-Master-Key': JSONBIN_API_KEY, 'Content-Type': 'application/json'}, json=data)
+            print("Cloud state background sync successful")
+        except Exception as e:
+            print(f"Cloud save error: {e}")
+    threading.Thread(target=run, daemon=True).start()
 
 def get_portfolio():
-    if JSONBIN_URL:
-        cloud_data = fetch_cloud_state()
-        if cloud_data and 'portfolio' in cloud_data:
-            return cloud_data['portfolio']
-    with open(PORTFOLIO_FILE, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    try:
+        with open(PORTFOLIO_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {"balance": 200000000, "holdings": [], "pending_orders": [], "trade_log": [], "equity_history": []}
 
 def save_portfolio(data):
     with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
-    if JSONBIN_URL:
-        cloud_data = fetch_cloud_state() or {}
-        cloud_data['portfolio'] = data
-        save_cloud_state(cloud_data)
+    save_cloud_state_bg()
 
 def get_watchlist():
-    if JSONBIN_URL:
-        cloud_data = fetch_cloud_state()
-        if cloud_data and 'watchlist' in cloud_data:
-            return cloud_data['watchlist']
-    with open(WATCHLIST_FILE, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    try:
+        with open(WATCHLIST_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return []
 
 def save_watchlist(data):
     with open(WATCHLIST_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
-    if JSONBIN_URL:
-        cloud_data = fetch_cloud_state() or {}
-        cloud_data['watchlist'] = data
-        save_cloud_state(cloud_data)
+    save_cloud_state_bg()
+
+# INITIAL SYNC ON STARTUP
+if JSONBIN_URL:
+    print("Initial sync from cloud...")
+    cloud_data = fetch_cloud_state()
+    if cloud_data:
+        if 'portfolio' in cloud_data:
+            with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['portfolio'], f, indent=4)
+        if 'watchlist' in cloud_data:
+            with open(WATCHLIST_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['watchlist'], f, indent=4)
+        if 'notes' in cloud_data:
+            with open(NOTES_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['notes'], f, indent=4, ensure_ascii=False)
+
+def bg_chart_updater():
+    print("Background chart updater started...")
+    while True:
+        try:
+            wl = get_watchlist()
+            for ticker in wl:
+                for res in ['1D', '1H']:
+                    try:
+                        end_date = datetime.now().strftime('%Y-%m-%d')
+                        start_date = '2023-01-01'
+                        df = stock_historical_data(symbol=ticker.upper(), start_date=start_date, end_date=end_date, resolution=res, type="stock", beautify=True)
+                        if df is not None and not df.empty:
+                            df = df[['time', 'open', 'high', 'low', 'close', 'volume']]
+                            df['time'] = pd.to_datetime(df['time'])
+                            if res in ['1D', '1W', '1M']:
+                                df['time'] = df['time'].dt.strftime('%Y-%m-%d')
+                            else:
+                                df['time'] = df['time'].apply(lambda x: int(x.timestamp()) - 7*3600)
+                            if not df.empty and df['close'].iloc[0] < 1000:
+                                for col in ['open', 'high', 'low', 'close']: df[col] = df[col] * 1000
+                            
+                            cache_key = f"{ticker.upper()}_{res}"
+                            CHART_CACHE[cache_key] = {
+                                'data': df.to_dict(orient='records'),
+                                'time': time.time()
+                            }
+                    except Exception as e:
+                        print(f"Bg updater error for {ticker} {res}: {e}")
+                    time.sleep(1) # avoid rate limit
+        except Exception as e:
+            print(f"Bg updater loop error: {e}")
+        # Sleep for 4 hours
+        time.sleep(14400)
+
+threading.Thread(target=bg_chart_updater, daemon=True).start()
+
+
 
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/api/force-sync', methods=['POST'])
+def force_sync_api():
+    if JSONBIN_URL:
+        cloud_data = fetch_cloud_state()
+        if cloud_data:
+            if 'portfolio' in cloud_data:
+                with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['portfolio'], f, indent=4)
+            if 'watchlist' in cloud_data:
+                with open(WATCHLIST_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['watchlist'], f, indent=4)
+            if 'notes' in cloud_data:
+                with open(NOTES_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['notes'], f, indent=4, ensure_ascii=False)
+            return jsonify({"status": "success", "message": "Đồng bộ dữ liệu thành công!"})
+    return jsonify({"status": "error", "message": "Không có JSONBIN_URL hoặc lỗi đồng bộ."})
 
 @app.route('/api/price/<ticker>')
 def price_api(ticker):
@@ -166,29 +228,52 @@ def price_api(ticker):
 @app.route('/api/stock/<ticker>')
 def stock_api(ticker):
     res = request.args.get('res', '1D') # 1D, 1H, 15, 4H, 1W, 1M
-    end_date = datetime.now().strftime('%Y-%m-%d')
-    
-    # Map resolutions
     fetch_res = res
     if res == '4H': fetch_res = '1H'
     elif res in ['1W', '1M']: fetch_res = '1D'
     
-    # Simplified logic: Always start from 2023 as requested
+    cache_key = f"{ticker.upper()}_{fetch_res}"
+    
+    # Use cache if available and less than 4 hours old
+    if cache_key in CHART_CACHE and (time.time() - CHART_CACHE[cache_key]['time']) < 14400:
+        data = CHART_CACHE[cache_key]['data']
+        # Resample if needed (from 1H to 4H, or 1D to 1W/1M)
+        if res in ['4H', '1W', '1M']:
+            df = pd.DataFrame(data)
+            df['time'] = pd.to_datetime(df['time'] if res not in ['4H'] else pd.to_datetime(df['time'], unit='s') + pd.Timedelta(hours=7))
+            if res == '4H':
+                df = df.set_index('time').resample('4h', offset='1h').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna().reset_index()
+                df['time'] = df['time'].apply(lambda x: int(x.timestamp()) - 7*3600)
+            elif res == '1W':
+                df = df.set_index('time').resample('W-MON').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna().reset_index()
+                df['time'] = df['time'].dt.strftime('%Y-%m-%d')
+            elif res == '1M':
+                df = df.set_index('time').resample('MS').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna().reset_index()
+                df['time'] = df['time'].dt.strftime('%Y-%m-%d')
+            return jsonify({"error": None, "data": df.to_dict(orient='records')})
+        return jsonify({"error": None, "data": data})
+
+    end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = '2023-01-01'
     
     try:
-        # Reverting to basic fetching
         df = stock_historical_data(symbol=ticker.upper(), start_date=start_date, end_date=end_date, resolution=fetch_res, type="stock", beautify=True)
-        
-        if df is not None and not df.empty:
-            print(f"[stock_api] {ticker} res={res} fetch_res={fetch_res} | Got {len(df)} rows | Range: {df['time'].iloc[0]} -> {df['time'].iloc[-1]}")
-        
         if df is None or df.empty:
             return jsonify({"error": "No data available", "data": []})
             
         df = df[['time', 'open', 'high', 'low', 'close', 'volume']]
         df['time'] = pd.to_datetime(df['time'])
         
+        # Save raw fetched data to cache
+        cache_df = df.copy()
+        if fetch_res in ['1D', '1W', '1M']:
+            cache_df['time'] = cache_df['time'].dt.strftime('%Y-%m-%d')
+        else:
+            cache_df['time'] = cache_df['time'].apply(lambda x: int(x.timestamp()) - 7*3600)
+        if not cache_df.empty and cache_df['close'].iloc[0] < 1000:
+            for col in ['open', 'high', 'low', 'close']: cache_df[col] = cache_df[col] * 1000
+        CHART_CACHE[cache_key] = {'data': cache_df.to_dict(orient='records'), 'time': time.time()}
+
         # Simple Resample logic
         if res == '4H':
             df = df.set_index('time').resample('4h', offset='1h').agg({
@@ -207,7 +292,6 @@ def stock_api(ticker):
         if res in ['1D', '1W', '1M']:
             df['time'] = df['time'].dt.strftime('%Y-%m-%d')
         else:
-            # The "OK" way: use timestamp and subtract 7 hours
             df['time'] = df['time'].apply(lambda x: int(x.timestamp()) - 7*3600)
 
         # Fix price scaling

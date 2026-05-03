@@ -614,6 +614,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
         <button class="btn-info" onclick="showCompanyInfo()">&#x2139; Summary</button>
         <button class="btn-info" onclick="openNotes(currentTicker)">&#x1F4CC; Notes</button>
         <button class="btn-ruler" onclick="toggleRuler()" id="btn-ruler" title="Ruler: kéo để đo % giữa 2 giá">&#x1F4CF; Ruler</button>
+        <button class="btn-ruler" onclick="toggleDrawLine()" id="btn-draw" title="Vẽ đường Trendline">&#9999; Vẽ Line</button>
+        <button class="btn-ruler" onclick="forceSyncPortfolio()" id="btn-sync" title="Đồng bộ danh mục">&#128472; Sync</button>
         <button class="btn-ruler" onclick="toggleSLCalc()" id="btn-calc" title="SL/TP Calculator">&#x1F3AF; SL Calc</button>
         <button class="btn-ruler" onclick="addCurrentToWatchlist()" id="btn-add-wl" title="Thêm vào Watchlist">&#x2764; WL</button>
         
@@ -931,6 +933,9 @@ let heatmapDataCache = null;
 let heatmapStatusFilter = 'ALL';
 let currentHeatmapMode = 'heatmap';
 let rulerActive = false;
+let drawActive = false;
+let drawStartPoint = null;
+let drawnLines = [];
 let leftHidden = false;
 let rightHidden = false;
 
@@ -1214,8 +1219,42 @@ async function showCompanyInfo() {
 let lineSeries = null;
 let measureStartPoint = null; // { time, value (price) }
 
+async function forceSyncPortfolio() {
+    try {
+        const res = await fetch('/api/force-sync', { method: 'POST' });
+        const json = await res.json();
+        if(json.status === 'success') {
+            toast('Đồng bộ thành công!', 'success');
+            await fetchPortfolio();
+        } else {
+            toast(json.message, 'error');
+        }
+    } catch(e) {
+        toast('Lỗi đồng bộ', 'error');
+    }
+}
+
+function toggleDrawLine() {
+  drawActive = !drawActive;
+  rulerActive = false;
+  document.getElementById('btn-ruler').classList.remove('active');
+  const btn = document.getElementById('btn-draw');
+  if (btn) btn.classList.toggle('active', drawActive);
+  
+  if (!drawActive) {
+    drawStartPoint = null;
+    document.querySelector('#chart-container').style.cursor = '';
+  } else {
+    document.querySelector('#chart-container').style.cursor = 'crosshair';
+    toast('Chế độ vẽ: Click điểm 1, sau đó click điểm 2', 'success');
+  }
+}
+
 function toggleRuler() {
   rulerActive = !rulerActive;
+  drawActive = false;
+  const btnDraw = document.getElementById('btn-draw');
+  if (btnDraw) btnDraw.classList.remove('active');
   document.getElementById('btn-ruler').classList.toggle('active', rulerActive);
   if (!rulerActive) {
     measureStartPoint = null;
@@ -1346,11 +1385,11 @@ function initChart() {
 
   new ResizeObserver(() => chart.applyOptions({ width: container.clientWidth, height: container.clientHeight })).observe(container);
 
-  // ── RULER TOOL ──
+  // ── RULER TOOL & DRAW TOOL ──
   const tooltip = document.getElementById('ruler-tooltip');
 
   chart.subscribeClick((param) => {
-    if (!rulerActive) return;
+    if (!rulerActive && !drawActive) return;
     if (!param.point) return;
 
     // Get price at click point using candleSeries (correct API)
@@ -1362,37 +1401,60 @@ function initChart() {
     if (!time) {
       time = chart.timeScale().coordinateToTime(param.point.x);
     }
-    if (!time && measureStartPoint) {
-      // Clicked past data range — use a synthetic time offset
-      time = measureStartPoint.time + 3600;
-    }
-    if (!time) return;
+    
+    if (drawActive) {
+      if (!time && drawStartPoint) time = drawStartPoint.time + 3600;
+      if (!time) return;
 
-    if (!measureStartPoint) {
-      // First click: set start
-      measureStartPoint = { time, value: price };
-      lineSeries.setData([{ time, value: price }]);
-      tooltip.style.display = 'block';
-      tooltip.style.top = '12px'; tooltip.style.left = '12px';
-      tooltip.innerHTML = `<span style="color:#60a5fa">📍 Start: <b>${fmt(price)}</b> — di chuyển chuột, click lần 2 để kết thúc</span>`;
-    } else {
-      // Second click: finish — keep the line, show final result
-      const diff  = price - measureStartPoint.value;
-      const pct   = (diff / measureStartPoint.value * 100);
-      const color = diff >= 0 ? '#00ff9d' : '#ff3366';
-      lineSeries.setData([measureStartPoint, { time, value: price }]);
-      tooltip.style.display = 'block';
-      tooltip.style.top = '12px'; tooltip.style.left = '12px';
-      tooltip.innerHTML = `
-        <div style="color:${color}">
-          <b>${diff >= 0 ? '+' : ''}${pct.toFixed(2)}%</b>
-          &nbsp;|&nbsp; ${diff >= 0 ? '+' : ''}${fmt(Math.abs(diff)).replace('₫','')}₫
-        </div>
-        <div style="color:#94a3b8;font-size:0.7rem;margin-top:3px">
-          Từ ${fmt(measureStartPoint.value)} → ${fmt(price)}
-        </div>
-        <div style="color:#64748b;font-size:0.65rem;margin-top:2px">Click lần 3 để đặt lại</div>`;
-      measureStartPoint = null; // Reset for next measurement
+      if (!drawStartPoint) {
+        drawStartPoint = { time, value: price };
+        toast('Đã chọn điểm 1. Click điểm 2 để hoàn thành.', 'success');
+      } else {
+        const newLine = chart.addLineSeries({
+            color: '#a855f7', lineWidth: 2, lineStyle: 0,
+            crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
+        });
+        newLine.setData([drawStartPoint, { time, value: price }]);
+        drawnLines.push(newLine);
+        drawStartPoint = null;
+        toggleDrawLine(); // auto turn off
+      }
+      return;
+    }
+
+    if (rulerActive) {
+        if (!time && measureStartPoint) {
+          // Clicked past data range — use a synthetic time offset
+          time = measureStartPoint.time + 3600;
+        }
+        if (!time) return;
+
+        if (!measureStartPoint) {
+          // First click: set start
+          measureStartPoint = { time, value: price };
+          lineSeries.setData([{ time, value: price }]);
+          tooltip.style.display = 'block';
+          tooltip.style.top = '12px'; tooltip.style.left = '12px';
+          tooltip.innerHTML = `<span style="color:#60a5fa">📍 Start: <b>${fmt(price)}</b> — di chuyển chuột, click lần 2 để kết thúc</span>`;
+        } else {
+          // Second click: finish — keep the line, show final result
+          const diff  = price - measureStartPoint.value;
+          const pct   = (diff / measureStartPoint.value * 100);
+          const color = diff >= 0 ? '#00ff9d' : '#ff3366';
+          lineSeries.setData([measureStartPoint, { time, value: price }]);
+          tooltip.style.display = 'block';
+          tooltip.style.top = '12px'; tooltip.style.left = '12px';
+          tooltip.innerHTML = `
+            <div style="color:${color}">
+              <b>${diff >= 0 ? '+' : ''}${pct.toFixed(2)}%</b>
+              &nbsp;|&nbsp; ${diff >= 0 ? '+' : ''}${fmt(Math.abs(diff)).replace('₫','')}₫
+            </div>
+            <div style="color:#94a3b8;font-size:0.7rem;margin-top:3px">
+              Từ ${fmt(measureStartPoint.value)} → ${fmt(price)}
+            </div>
+            <div style="color:#64748b;font-size:0.65rem;margin-top:2px">Click lần 3 để đặt lại</div>`;
+          measureStartPoint = null; // Reset for next measurement
+        }
     }
   });
 
