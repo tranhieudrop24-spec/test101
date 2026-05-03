@@ -1,5 +1,5 @@
 {
-    "balance": 84314700.0,
+    "balance": 57304700.0,
     "holdings": [
         {
             "ticker": "VCB",
@@ -55,6 +55,21 @@
             "ticker": "FPT",
             "quantity": 100,
             "avgPrice": 73074.0
+        },
+        {
+            "ticker": "MWG",
+            "quantity": 100,
+            "avgPrice": 84000.0
+        },
+        {
+            "ticker": "FRT",
+            "quantity": 40,
+            "avgPrice": 149000.0
+        },
+        {
+            "ticker": "POW",
+            "quantity": 1000,
+            "avgPrice": 12650.0
         }
     ],
     "pending_orders": [
@@ -88,6 +103,27 @@
             "quantity": 200,
             "price": 16450.0,
             "timestamp": "2026-05-04T04:37:34.598268"
+        },
+        {
+            "ticker": "MWG",
+            "action": "buy",
+            "quantity": 100,
+            "price": 84000.0,
+            "timestamp": "2026-05-04T04:42:14.936215"
+        },
+        {
+            "ticker": "FRT",
+            "action": "buy",
+            "quantity": 40,
+            "price": 149000.0,
+            "timestamp": "2026-05-04T04:43:07.888537"
+        },
+        {
+            "ticker": "POW",
+            "action": "buy",
+            "quantity": 1000,
+            "price": 12650.0,
+            "timestamp": "2026-05-04T04:44:44.947416"
         }
     ],
     "equity_history": []

@@ -247,14 +247,16 @@ def force_sync_api():
     if JSONBIN_URL:
         cloud_data = fetch_cloud_state()
         if cloud_data:
+            uid = get_uid()
             if 'portfolio' in cloud_data:
-                with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['portfolio'], f, indent=4)
+                with open(f"portfolio_{uid}.json", 'w', encoding='utf-8') as f: json.dump(cloud_data['portfolio'], f, indent=4)
             if 'watchlist' in cloud_data:
-                with open(WATCHLIST_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['watchlist'], f, indent=4)
+                with open(f"watchlist_{uid}.json", 'w', encoding='utf-8') as f: json.dump(cloud_data['watchlist'], f, indent=4)
             if 'notes' in cloud_data:
-                with open(NOTES_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['notes'], f, indent=4, ensure_ascii=False)
+                with open(f"notes_{uid}.json", 'w', encoding='utf-8') as f: json.dump(cloud_data['notes'], f, indent=4, ensure_ascii=False)
             return jsonify({"status": "success", "message": "Đồng bộ dữ liệu thành công!"})
-    return jsonify({"status": "error", "message": "Không có JSONBIN_URL hoặc lỗi đồng bộ."})
+        return jsonify({"status": "error", "message": "Lỗi đồng bộ từ Cloud."})
+    return jsonify({"status": "error", "message": "Nút Sync chỉ có tác dụng khi chạy trên Web thật (Render.com) có cấu hình JSONBIN."})
 
 @app.route('/api/price/<ticker>')
 def price_api(ticker):
