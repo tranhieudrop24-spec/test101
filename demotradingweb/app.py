@@ -70,14 +70,18 @@ CHART_CACHE = {}
 MARKET_MAP_CACHE = {'data': None, 'time': 0}
 
 def get_notes():
+    uid = get_uid()
+    file_path = f"notes_{uid}.json"
     try:
-        with open(NOTES_FILE, 'r', encoding='utf-8') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except:
         return {}
 
 def save_notes(data):
-    with open(NOTES_FILE, 'w', encoding='utf-8') as f:
+    uid = get_uid()
+    file_path = f"notes_{uid}.json"
+    with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
     save_cloud_state_bg()
 
@@ -106,27 +110,42 @@ def save_cloud_state_bg():
             print(f"Cloud save error: {e}")
     threading.Thread(target=run, daemon=True).start()
 
-def get_portfolio():
+def get_uid():
     try:
-        with open(PORTFOLIO_FILE, 'r', encoding='utf-8') as f:
+        from flask import request
+        if request: return request.headers.get('X-User-ID', '001')
+    except: pass
+    return '001'
+
+def get_portfolio():
+    uid = get_uid()
+    file_path = f"portfolio_{uid}.json"
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except:
         return {"balance": 200000000, "holdings": [], "pending_orders": [], "trade_log": [], "equity_history": []}
 
 def save_portfolio(data):
-    with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
+    uid = get_uid()
+    file_path = f"portfolio_{uid}.json"
+    with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
     save_cloud_state_bg()
 
 def get_watchlist():
+    uid = get_uid()
+    file_path = f"watchlist_{uid}.json"
     try:
-        with open(WATCHLIST_FILE, 'r', encoding='utf-8') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except:
         return []
 
 def save_watchlist(data):
-    with open(WATCHLIST_FILE, 'w', encoding='utf-8') as f:
+    uid = get_uid()
+    file_path = f"watchlist_{uid}.json"
+    with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
     save_cloud_state_bg()
 
@@ -147,7 +166,10 @@ def bg_chart_updater():
     while True:
         try:
             wl = get_watchlist()
-            for ticker in wl:
+            port = get_portfolio()
+            port_tickers = [h['ticker'] for h in port.get('holdings', [])]
+            all_tickers = list(set(wl + port_tickers))
+            for ticker in all_tickers:
                 for res in ['1D', '1H']:
                     try:
                         end_date = datetime.now().strftime('%Y-%m-%d')
@@ -237,11 +259,22 @@ def force_sync_api():
 @app.route('/api/price/<ticker>')
 def price_api(ticker):
     """Get latest price for a ticker."""
+    ticker = ticker.upper()
+    cache_key = f"{ticker}_1D"
+    if cache_key in CHART_CACHE:
+        data = CHART_CACHE[cache_key]['data']
+        if data and len(data) > 0:
+            last = data[-1]
+            price = float(last['close'])
+            prev = float(data[-2]['close']) if len(data) > 1 else price
+            change_pct = round((price - prev) / prev * 100, 2) if prev != 0 else 0
+            return jsonify({"price": price, "change": change_pct, "ticker": ticker})
+
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
     try:
         df = stock_historical_data(
-            symbol=ticker.upper(),
+            symbol=ticker,
             start_date=start_date,
             end_date=end_date,
             resolution="1D",
@@ -257,7 +290,7 @@ def price_api(ticker):
             price *= 1000
             prev *= 1000
         change_pct = round((price - prev) / prev * 100, 2) if prev != 0 else 0
-        return jsonify({"price": price, "change": change_pct, "ticker": ticker.upper()})
+        return jsonify({"price": price, "change": change_pct, "ticker": ticker})
     except Exception as e:
         print(f"[price_api error] {e}")
         return jsonify({"price": 0, "change": 0})
@@ -609,25 +642,49 @@ def match_orders_api():
     for order in pending_orders:
         ticker = order['ticker']
         if ticker not in day_prices:
-            try:
-                df = stock_historical_data(symbol=ticker, start_date=start_date, end_date=end_date, resolution="1D", type="stock", beautify=True)
-                if df is not None and not df.empty:
-                    last_row = df.iloc[-1]
-                    low = float(last_row['low'])
-                    high = float(last_row['high'])
-                    if low < 1000:
-                        low *= 1000
-                        high *= 1000
-                    day_prices[ticker] = {'low': low, 'high': high}
-                else:
+            cache_key = f"{ticker}_1D"
+            if cache_key in CHART_CACHE and CHART_CACHE[cache_key]['data'] and len(CHART_CACHE[cache_key]['data']) > 0:
+                last_row = CHART_CACHE[cache_key]['data'][-1]
+                low = float(last_row['low'])
+                high = float(last_row['high'])
+                day_prices[ticker] = {'low': low, 'high': high, 'time': last_row['time']}
+            else:
+                try:
+                    df = stock_historical_data(symbol=ticker, start_date=start_date, end_date=end_date, resolution="1D", type="stock", beautify=True)
+                    if df is not None and not df.empty:
+                        last_row = df.iloc[-1]
+                        low = float(last_row['low'])
+                        high = float(last_row['high'])
+                        if low < 1000:
+                            low *= 1000
+                            high *= 1000
+                        
+                        # Time formatting to match cache style
+                        time_val = last_row['time']
+                        if hasattr(time_val, 'strftime'):
+                            time_val = time_val.strftime('%Y-%m-%d')
+                        elif isinstance(time_val, pd.Timestamp):
+                            time_val = time_val.strftime('%Y-%m-%d')
+                            
+                        day_prices[ticker] = {'low': low, 'high': high, 'time': time_val}
+                    else:
+                        day_prices[ticker] = None
+                except Exception as e:
                     day_prices[ticker] = None
-            except Exception as e:
-                day_prices[ticker] = None
                 
         price_data = day_prices.get(ticker)
         matched = False
         
         if price_data:
+            candle_date_str = str(price_data['time'])[:10]
+            order_date_str = order.get('timestamp', '')[:10]
+            
+            # ONLY match if the candle's date is ON or AFTER the order placement date
+            # This prevents orders placed on holidays/weekends from time-traveling and matching against past prices.
+            if candle_date_str < order_date_str:
+                remaining_orders.append(order)
+                continue
+
             if order['action'] == 'buy' and order['price'] >= price_data['low']:
                 # Buy matches if limit price is greater than or equal to day's low
                 found = False

@@ -10,31 +10,42 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#050510;--panel:rgba(20,10,35,0.7);--card:rgba(30,15,50,0.8);--border:rgba(168,85,247,0.3);
-  --text:#e2e8f0;--dim:#94a3b8;--up:#00ff9d;--down:#ff3366;
-  --blue:#a855f7;--blue2:#c084fc;--accent:#00f0ff;
+  --bg:#0b0e11;--panel:#181a20;--card:#1e2329;--border:#2b3139;
+  --text:#eaecef;--dim:#848e9c;--up:#0ecb81;--down:#f6465d;
+  --blue:#fcd535;--blue2:#f0b90b;--accent:#2962ff;
 }
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+body{font-family:'Inter', -apple-system, sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
 /* TOP BAR */
 .topbar{
   display:flex;align-items:center;justify-content:space-between;
-  padding:12px 20px;background:rgba(3,7,18,0.8);border-bottom:1px solid var(--border);
-  backdrop-filter:blur(10px);flex-shrink:0;box-shadow:0 0 15px rgba(0,240,255,0.1);
+  padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--border);
+  flex-shrink:0;
 }
-.logo{display:flex;align-items:center;gap:10px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.4rem;color:#fff;letter-spacing:1px;text-shadow:0 0 10px rgba(168,85,247,0.6)}
+.logo{display:flex;align-items:center;gap:10px;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.4rem;color:var(--blue);letter-spacing:1px;}
 .top-nav{display:flex;gap:12px;margin-left:30px}
 .nav-btn{
   background:transparent;border:1px solid transparent;color:var(--dim);
-  padding:6px 16px;border-radius:6px;cursor:pointer;font-weight:600;transition:.2s;
+  padding:6px 16px;border-radius:4px;cursor:pointer;font-weight:600;transition:.2s;
   font-family:'Rajdhani',sans-serif;font-size:1rem;text-transform:uppercase;letter-spacing:1px;
 }
-.nav-btn.active{background:rgba(168,85,247,.15);color:var(--blue);border-color:var(--blue);box-shadow:0 0 10px rgba(168,85,247,0.3)}
-.nav-btn:hover:not(.active){color:var(--text);text-shadow:0 0 5px rgba(255,255,255,0.5)}
+.nav-btn.active{background:var(--card);color:var(--text);border-color:transparent;}
+.nav-btn:hover:not(.active){color:var(--text);}
 
 .balance-area{display:flex;gap:24px;margin-left:auto}
 .bal-item .lbl{font-size:0.75rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
-.bal-item .val{font-size:1.1rem;font-weight:700;color:var(--blue);font-family:'Rajdhani',sans-serif;text-shadow:0 0 8px rgba(168,85,247,0.4)}
+.bal-item .val{font-size:1.1rem;font-weight:700;color:var(--text);font-family:'Rajdhani',sans-serif;}
+
+.user-profile {
+  display:flex;align-items:center;gap:10px;margin-left:24px;padding-left:24px;
+  border-left:1px solid var(--border);cursor:pointer;
+}
+.user-profile:hover #up-name { color:var(--blue); }
+#up-avatar {
+  width:28px;height:28px;border-radius:14px;background:var(--blue);color:#000;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.8rem;
+}
+#up-name { font-size:0.85rem;font-weight:600;color:var(--text);transition:0.2s; }
 
 /* MAIN LAYOUT */
 .main-wrapper{flex:1;position:relative;overflow:hidden}
@@ -101,7 +112,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .btn-coll-right { right: 0; border-right: none; border-radius: 4px 0 0 4px; }
 
 .chart-header{
-  display:flex;align-items:center;gap:12px;padding:10px 16px;
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 16px;
   background:var(--panel);border-bottom:1px solid var(--border);
 }
 .ticker-display{font-size:1.3rem;font-weight:700;color:var(--accent)}
@@ -109,14 +120,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .ticker-change{font-size:0.85rem;font-weight:500;padding:2px 8px;border-radius:4px}
 .ticker-change.up{background:rgba(34,197,94,.15);color:var(--up)}
 .ticker-change.down{background:rgba(239,68,68,.15);color:var(--down)}
-.tf-btns{display:flex;gap:4px;margin-left:16px;background:#0f1724;padding:4px;border-radius:8px;border:1px solid var(--border)}
+.tf-btns{display:flex;gap:4px;margin-left:auto;background:#0f1724;padding:4px;border-radius:6px;border:1px solid var(--border)}
 .tf-btn{
   background:none;border:none;color:var(--dim);padding:4px 10px;
   border-radius:4px;cursor:pointer;font-size:0.75rem;font-weight:600;
 }
 .tf-btn.active{background:var(--panel);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
 
-.chart-search{display:flex;gap:8px;margin-left:auto}
+.chart-search{display:flex;gap:6px;margin-left:8px}
 .chart-search input{
   background:#0f1724;border:1px solid var(--border);color:var(--text);
   padding:7px 12px;border-radius:8px;font-size:0.85rem;outline:none;width:120px;
@@ -128,7 +139,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 }
 .btn-info, .btn-ruler{
   background:rgba(255,255,255,0.1);border:1px solid var(--border);color:var(--text);
-  padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.75rem;margin-left:8px;
+  padding:4px 8px;border-radius:4px;cursor:pointer;font-size:0.7rem;margin-left:2px;
 }
 .btn-info:hover, .btn-ruler:hover{background:rgba(255,255,255,0.2)}
 .btn-ruler.active { background:rgba(59,130,246,0.2); border-color:var(--blue); color:var(--blue); }
@@ -352,111 +363,111 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 /* PORTFOLIO VIEW — Professional Terminal Style */
 .portfolio-view {
   display:none; flex-direction:column; height:100%; overflow-y:auto;
-  padding:20px 28px 60px; background:#080c14;
+  padding:16px 20px 60px; background:var(--bg);
 }
 /* Header */
 .pv-header {
   display:flex; align-items:baseline; gap:16px;
-  border-bottom:1px solid #1a2235; padding-bottom:12px; margin-bottom:20px;
+  border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:20px;
 }
 .pv-header-title {
-  font-family:'Rajdhani',sans-serif; font-size:1rem; font-weight:700;
-  letter-spacing:3px; text-transform:uppercase; color:#94a3b8;
+  font-family:'Rajdhani',sans-serif; font-size:1.1rem; font-weight:700;
+  letter-spacing:1px; text-transform:uppercase; color:var(--text);
 }
-.pv-header-sub { font-size:0.72rem; color:#475569; letter-spacing:1px; }
+.pv-header-sub { font-size:0.75rem; color:var(--dim); letter-spacing:1px; }
 /* Metric strip */
 .pv-metrics {
-  display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
-  gap:1px; background:#1a2235; border:1px solid #1a2235;
-  border-radius:6px; overflow:hidden; margin-bottom:20px;
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:1px; background:var(--border); border:1px solid var(--border);
+  border-radius:4px; overflow:hidden; margin-bottom:20px;
 }
 .pv-card {
-  background:#0d1220; padding:14px 16px;
+  background:var(--panel); padding:16px;
   display:flex; flex-direction:column; gap:4px;
 }
 .pv-card .lbl {
-  font-size:0.63rem; font-weight:600; letter-spacing:1.5px;
-  text-transform:uppercase; color:#475569;
+  font-size:0.7rem; font-weight:600; letter-spacing:1px;
+  text-transform:uppercase; color:var(--dim);
 }
 .pv-card .val {
-  font-family:'Rajdhani',sans-serif; font-size:1.45rem; font-weight:700;
-  color:#e2e8f0; letter-spacing:0.5px;
+  font-family:'Rajdhani',sans-serif; font-size:1.5rem; font-weight:700;
+  color:var(--text); letter-spacing:0.5px;
 }
-.pv-card.highlight { background:#0f1a2e; }
-.pv-card.highlight .val { color:#60a5fa; }
+.pv-card.highlight { background:var(--card); }
+.pv-card.highlight .val { color:var(--blue); }
 /* Holdings section */
 .holdings-section { margin-bottom:24px; }
 .holdings-header {
   display:flex; justify-content:space-between; align-items:center;
-  padding:10px 0 8px; border-bottom:1px solid #1a2235; margin-bottom:0;
+  padding:10px 0 8px; border-bottom:1px solid var(--border); margin-bottom:0;
 }
 .holdings-header h3 {
-  font-family:'Rajdhani',sans-serif; font-size:0.78rem; font-weight:700;
-  letter-spacing:2px; text-transform:uppercase; color:#64748b; margin:0;
+  font-family:'Rajdhani',sans-serif; font-size:0.85rem; font-weight:700;
+  letter-spacing:1px; text-transform:uppercase; color:var(--dim); margin:0;
 }
-.holdings-count { font-size:0.7rem; color:#475569; }
+.holdings-count { font-size:0.75rem; color:var(--dim); }
 .holdings-table-wrap { overflow-x:auto; }
 .holdings-table {
-  width:100%; border-collapse:collapse; font-size:0.82rem;
+  width:100%; border-collapse:collapse; font-size:0.85rem;
 }
 .holdings-table thead tr {
-  background:#0a0f1a; border-bottom:1px solid #1a2235;
+  background:var(--panel); border-bottom:1px solid var(--border);
 }
 .holdings-table th {
-  padding:9px 12px; text-align:right; font-size:0.63rem; font-weight:700;
-  letter-spacing:1.5px; text-transform:uppercase; color:#475569;
+  padding:6px 12px; text-align:right; font-size:0.7rem; font-weight:600;
+  letter-spacing:1px; text-transform:uppercase; color:var(--dim);
   white-space:nowrap;
 }
 .holdings-table th:first-child { text-align:left; }
 .holdings-table td {
-  padding:9px 12px; text-align:right; border-bottom:1px solid #0f1826;
-  color:#cbd5e1; font-family:'Rajdhani',sans-serif; font-weight:600;
-  white-space:nowrap;
+  padding:6px 12px; text-align:right; border-bottom:1px solid var(--border);
+  color:var(--text); font-family:'Rajdhani',sans-serif; font-weight:600;
+  white-space:nowrap; font-variant-numeric: tabular-nums;
 }
 .holdings-table td:first-child { text-align:left; }
-.holdings-table tbody tr:hover { background:rgba(255,255,255,0.02); }
+.holdings-table tbody tr:hover { background:rgba(255,255,255,0.03); }
 .holdings-table tfoot tr {
-  background:#0a0f1a; border-top:1px solid #1e3058;
+  background:var(--panel); border-top:1px solid var(--border);
 }
 .holdings-table tfoot td {
-  padding:10px 12px; font-size:0.82rem; font-weight:700;
-  color:#94a3b8; border-bottom:none;
+  padding:14px 12px; font-size:0.9rem; font-weight:700;
+  color:var(--text); border-bottom:none;
 }
 .ht-ticker {
-  font-family:'Rajdhani',sans-serif; font-weight:700; font-size:0.9rem;
-  color:#e2e8f0; cursor:pointer; letter-spacing:0.5px;
+  font-family:'Rajdhani',sans-serif; font-weight:700; font-size:1rem;
+  color:var(--text); cursor:pointer; letter-spacing:0.5px;
 }
-.ht-ticker:hover { color:#60a5fa; }
-.ht-industry { font-size:0.65rem; color:#475569; font-weight:400; font-family:'Inter',sans-serif; margin-top:1px; }
-.holdings-empty { text-align:center; padding:32px; color:#475569; font-size:0.8rem; }
-.holdings-bar-wrap { height:4px; background:#0f1826; border-radius:2px; width:80px; margin-left:auto; }
-.holdings-bar { height:100%; border-radius:2px; background:#3b82f6; min-width:2px; }
+.ht-ticker:hover { color:var(--accent); }
+.ht-industry { font-size:0.7rem; color:var(--dim); font-weight:400; font-family:'Inter',sans-serif; margin-top:2px; }
+.holdings-empty { text-align:center; padding:32px; color:var(--dim); font-size:0.85rem; }
+.holdings-bar-wrap { height:4px; background:var(--border); border-radius:2px; width:80px; margin-left:auto; }
+.holdings-bar { height:100%; border-radius:2px; background:var(--blue); min-width:2px; }
 /* Charts row */
 .pv-charts-row {
-  display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px;
+  display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:20px;
 }
 .pv-performance-row {
-  display:grid; grid-template-columns:1fr 260px; gap:12px;
+  display:grid; grid-template-columns:1fr 280px; gap:16px;
 }
 .pv-chart-box {
-  background:#0d1220; border:1px solid #1a2235; border-radius:6px; padding:14px;
+  background:var(--panel); border:1px solid var(--border); border-radius:4px; padding:16px;
 }
 .pv-chart-title {
-  font-size:0.65rem; font-weight:700; letter-spacing:2px;
-  text-transform:uppercase; color:#475569; margin-bottom:12px;
+  font-size:0.7rem; font-weight:700; letter-spacing:1px;
+  text-transform:uppercase; color:var(--dim); margin-bottom:12px;
 }
 /* Risk cards */
 .pv-risk-metrics {
-  background:#0d1220; border:1px solid #1a2235; border-radius:6px;
-  padding:14px; display:flex; flex-direction:column; gap:0;
+  background:var(--panel); border:1px solid var(--border); border-radius:4px;
+  padding:16px; display:flex; flex-direction:column; gap:0;
 }
 .risk-card {
   display:flex; justify-content:space-between; align-items:center;
-  padding:10px 0; border-bottom:1px solid #0f1826;
+  padding:12px 0; border-bottom:1px solid var(--border);
 }
 .risk-card:last-child { border-bottom:none; }
-.r-lbl { font-size:0.68rem; color:#475569; letter-spacing:1px; text-transform:uppercase; }
-.r-val { font-family:'Rajdhani',sans-serif; font-size:1.1rem; font-weight:700; color:#e2e8f0; }
+.r-lbl { font-size:0.7rem; color:var(--dim); letter-spacing:0.5px; text-transform:uppercase; }
+.r-val { font-family:'Rajdhani',sans-serif; font-size:1.15rem; font-weight:700; color:var(--text); }
 
 /* TOAST */
 .toast{
@@ -469,8 +480,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 .toast.error{background:#7f1d1d;border:1px solid var(--down);color:#fecaca}
 
 ::-webkit-scrollbar{width:5px}
-::-webkit-scrollbar-track{background:var(--panel)}
-::-webkit-scrollbar-thumb{background:#1f2d45;border-radius:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--dim)}
 
 /* NOTES MODAL */
 .notes-modal-content { background:rgba(15,8,30,0.98); border:1px solid var(--border); border-radius:16px; width:480px; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.9); }
@@ -622,8 +634,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
         <div class="ticker-change flat" id="hdr-change">—</div>
         <button class="btn-info" onclick="showCompanyInfo()">&#x2139; Summary</button>
         <button class="btn-info" onclick="openNotes(currentTicker)">&#x1F4CC; Notes</button>
-        <button class="btn-ruler" onclick="toggleRuler()" id="btn-ruler" title="Ruler: kéo để đo % giữa 2 giá">&#x1F4CF; Ruler</button>
-        <button class="btn-ruler" onclick="toggleDrawLine()" id="btn-draw" title="Vẽ đường Trendline">&#9999; Vẽ Line</button>
+        <button class="btn-ruler" onclick="toggleRuler()" id="btn-ruler" title="Đo %">📏 Ruler</button>
+        <button class="btn-ruler" onclick="toggleDrawLine()" id="btn-draw" title="Vẽ Line Ngang">✏️ Lines</button>
+        <button class="btn-ruler" onclick="toggleErase()" id="btn-erase" title="Xóa từng Line">🧽 Erase</button>
+        <button class="btn-ruler" onclick="clearLines()" title="Xóa tất cả Lines">❌ Clear All</button>
         <button class="btn-ruler" onclick="forceSyncPortfolio()" id="btn-sync" title="Đồng bộ danh mục">&#128472; Sync</button>
         <button class="btn-ruler" onclick="toggleSLCalc()" id="btn-calc" title="SL/TP Calculator">&#x1F3AF; SL Calc</button>
         <button class="btn-ruler" onclick="addCurrentToWatchlist()" id="btn-add-wl" title="Thêm vào Watchlist">&#x2764; WL</button>
@@ -941,7 +955,56 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);heigh
 <div class="alert-overlay" id="alert-overlay"></div>
 
 
+
+<div class="modal-overlay" id="user-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">Đăng nhập / Đổi User</div>
+      <button class="modal-close" onclick="closeUserModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>User ID</label>
+        <input type="text" id="user-id-input" placeholder="Ví dụ: 001">
+      </div>
+      <div class="form-row">
+        <label>Tên hiển thị</label>
+        <input type="text" id="user-name-input" placeholder="Ví dụ: THieu">
+      </div>
+      <button class="match-btn" style="width:100%;margin-top:10px" onclick="saveUser()">Đăng nhập</button>
+      <p style="font-size:0.75rem;color:var(--dim);margin-top:10px;line-height:1.4">Không cần mật khẩu. Dữ liệu của bạn được phân tách theo User ID.</p>
+    </div>
+  </div>
+</div>
 <script>
+let currentUser = JSON.parse(localStorage.getItem('citrinex_user') || 'null');
+if (!currentUser) {
+    currentUser = { id: '001', name: 'THieu' };
+    localStorage.setItem('citrinex_user', JSON.stringify(currentUser));
+}
+function updateProfileUI() {
+    const av = document.getElementById('up-avatar');
+    if(av) av.innerText = currentUser.name.charAt(0).toUpperCase();
+    const nm = document.getElementById('up-name');
+    if(nm) nm.innerText = currentUser.name;
+}
+function showUserModal() {
+    document.getElementById('user-modal').classList.add('active');
+    document.getElementById('user-id-input').value = currentUser.id;
+    document.getElementById('user-name-input').value = currentUser.name;
+}
+function closeUserModal() { document.getElementById('user-modal').classList.remove('active'); }
+function saveUser() {
+    const uid = document.getElementById('user-id-input').value.trim() || '001';
+    const uname = document.getElementById('user-name-input').value.trim() || 'THieu';
+    currentUser = { id: uid, name: uname };
+    localStorage.setItem('citrinex_user', JSON.stringify(currentUser));
+    updateProfileUI();
+    closeUserModal();
+    window.location.reload();
+}
+const reqHeaders = () => ({ 'Content-Type': 'application/json', 'X-User-ID': currentUser.id });
+
 // ─── STATE ───────────────────────────────────────────────
 let chart = null;
 let candleSeries = null;
@@ -1244,10 +1307,18 @@ async function showCompanyInfo() {
 // ─── CHART ───────────────────────────────────────────────
 let lineSeries = null;
 let measureStartPoint = null; // { time, value (price) }
+let eraseActive = false;
+
+function clearLines() {
+    drawnLines.forEach(l => {
+        try { candleSeries.removePriceLine(l); } catch(e){}
+    });
+    drawnLines = [];
+}
 
 async function forceSyncPortfolio() {
     try {
-        const res = await fetch('/api/force-sync', { method: 'POST' });
+        const res = await fetch('/api/force-sync', { method: 'POST', headers: reqHeaders() });
         const json = await res.json();
         if(json.status === 'success') {
             toast('Đồng bộ thành công!', 'success');
@@ -1260,27 +1331,46 @@ async function forceSyncPortfolio() {
     }
 }
 
+function toggleErase() {
+  eraseActive = !eraseActive;
+  drawActive = false; rulerActive = false;
+  document.getElementById('btn-ruler').classList.remove('active');
+  const btnDraw = document.getElementById('btn-draw');
+  if (btnDraw) btnDraw.classList.remove('active');
+  const btnErase = document.getElementById('btn-erase');
+  if (btnErase) btnErase.classList.toggle('active', eraseActive);
+  
+  if (eraseActive) {
+    document.querySelector('#chart-container').style.cursor = 'cell';
+    toast('Chế độ Tẩy: Click vào Line để xóa', 'success');
+  } else {
+    document.querySelector('#chart-container').style.cursor = '';
+  }
+}
+
 function toggleDrawLine() {
   drawActive = !drawActive;
-  rulerActive = false;
+  rulerActive = false; eraseActive = false;
   document.getElementById('btn-ruler').classList.remove('active');
+  const btnErase = document.getElementById('btn-erase');
+  if (btnErase) btnErase.classList.remove('active');
   const btn = document.getElementById('btn-draw');
   if (btn) btn.classList.toggle('active', drawActive);
   
   if (!drawActive) {
-    drawStartPoint = null;
     document.querySelector('#chart-container').style.cursor = '';
   } else {
     document.querySelector('#chart-container').style.cursor = 'crosshair';
-    toast('Chế độ vẽ: Click điểm 1, sau đó click điểm 2', 'success');
   }
 }
 
 function toggleRuler() {
   rulerActive = !rulerActive;
-  drawActive = false;
+  drawActive = false; eraseActive = false;
   const btnDraw = document.getElementById('btn-draw');
   if (btnDraw) btnDraw.classList.remove('active');
+  const btnErase = document.getElementById('btn-erase');
+  if (btnErase) btnErase.classList.remove('active');
   document.getElementById('btn-ruler').classList.toggle('active', rulerActive);
   if (!rulerActive) {
     measureStartPoint = null;
@@ -1289,10 +1379,6 @@ function toggleRuler() {
     document.querySelector('#chart-container').style.cursor = '';
   } else {
     document.querySelector('#chart-container').style.cursor = 'crosshair';
-    const t = document.getElementById('ruler-tooltip');
-    t.style.display = 'block';
-    t.style.top = '12px'; t.style.left = '12px';
-    t.innerHTML = '<span style="color:#60a5fa">📏 Click điểm 1 trên chart để bắt đầu đo</span>';
   }
 }
 
@@ -1411,16 +1497,42 @@ function initChart() {
 
   new ResizeObserver(() => chart.applyOptions({ width: container.clientWidth, height: container.clientHeight })).observe(container);
 
+  container.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      if (rulerActive) toggleRuler();
+      if (drawActive) toggleDrawLine();
+      if (eraseActive) toggleErase();
+  });
+
   // ── RULER TOOL & DRAW TOOL ──
   const tooltip = document.getElementById('ruler-tooltip');
 
   chart.subscribeClick((param) => {
-    if (!rulerActive && !drawActive) return;
+    if (!rulerActive && !drawActive && !eraseActive) return;
     if (!param.point) return;
 
-    // Get price at click point using candleSeries (correct API)
     const price = candleSeries.coordinateToPrice(param.point.y);
     if (price === null || price === undefined) return;
+
+    if (eraseActive) {
+      let closestLine = null;
+      let minDiff = Infinity;
+      let closestIdx = -1;
+      drawnLines.forEach((l, idx) => {
+          const lPrice = l.options().price;
+          const diff = Math.abs(price - lPrice);
+          const clickY = param.point.y;
+          const lineY = candleSeries.priceToCoordinate(lPrice);
+          if (lineY !== null && Math.abs(clickY - lineY) < 15) { // within 15px vertically
+              if (diff < minDiff) { minDiff = diff; closestLine = l; closestIdx = idx; }
+          }
+      });
+      if (closestLine) {
+          candleSeries.removePriceLine(closestLine);
+          drawnLines.splice(closestIdx, 1);
+      }
+      return;
+    }
 
     // Get time — use param.time if available, else approximate
     let time = param.time;
@@ -1429,22 +1541,15 @@ function initChart() {
     }
     
     if (drawActive) {
-      if (!time && drawStartPoint) time = drawStartPoint.time + 3600;
-      if (!time) return;
-
-      if (!drawStartPoint) {
-        drawStartPoint = { time, value: price };
-        toast('Đã chọn điểm 1. Click điểm 2 để hoàn thành.', 'success');
-      } else {
-        const newLine = chart.addLineSeries({
-            color: '#a855f7', lineWidth: 2, lineStyle: 0,
-            crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false,
-        });
-        newLine.setData([drawStartPoint, { time, value: price }]);
-        drawnLines.push(newLine);
-        drawStartPoint = null;
-        toggleDrawLine(); // auto turn off
-      }
+      const newLine = candleSeries.createPriceLine({
+        price: price,
+        color: '#a855f7',
+        lineWidth: 2,
+        lineStyle: LightweightCharts.LineStyle.Solid,
+        axisLabelVisible: true,
+      });
+      drawnLines.push(newLine);
+      toggleDrawLine(); // auto turn off
       return;
     }
 
@@ -1459,9 +1564,6 @@ function initChart() {
           // First click: set start
           measureStartPoint = { time, value: price };
           lineSeries.setData([{ time, value: price }]);
-          tooltip.style.display = 'block';
-          tooltip.style.top = '12px'; tooltip.style.left = '12px';
-          tooltip.innerHTML = `<span style="color:#60a5fa">📍 Start: <b>${fmt(price)}</b> — di chuyển chuột, click lần 2 để kết thúc</span>`;
         } else {
           // Second click: finish — keep the line, show final result
           const diff  = price - measureStartPoint.value;
@@ -1477,8 +1579,7 @@ function initChart() {
             </div>
             <div style="color:#94a3b8;font-size:0.7rem;margin-top:3px">
               Từ ${fmt(measureStartPoint.value)} → ${fmt(price)}
-            </div>
-            <div style="color:#64748b;font-size:0.65rem;margin-top:2px">Click lần 3 để đặt lại</div>`;
+            </div>`;
           measureStartPoint = null; // Reset for next measurement
         }
     }
@@ -1688,7 +1789,7 @@ function drawEntryMarkers(ticker, data) {
 
 // ─── WATCHLIST ────────────────────────────────────────────
 async function fetchWatchlist() {
-  const res = await fetch('/api/watchlist');
+  const res = await fetch('/api/watchlist', { headers: reqHeaders() });
   watchlist = await res.json();
   renderWatchlist();
 }
@@ -1784,7 +1885,7 @@ function togglePortSection(paneId, headerEl) {
 }
 
 async function fetchPortfolio() {
-  const res = await fetch('/api/portfolio');
+  const res = await fetch('/api/portfolio', { headers: reqHeaders() });
   portfolio = await res.json();
   renderPortfolio();
   updateBalanceUI();
@@ -1881,7 +1982,7 @@ async function cancelOrder(id) {
 
 async function matchOrders() {
   toast("Matching orders...", "success");
-  const res = await fetch('/api/match_orders', { method: 'POST' });
+  const res = await fetch('/api/match_orders', { method: 'POST', headers: reqHeaders() });
   const data = await res.json();
   portfolio = data.portfolio;
   renderPortfolio();
@@ -1994,7 +2095,7 @@ async function renderPortfolioDashboard() {
   tbody.innerHTML = '<tr><td colspan="8" class="holdings-empty"><div class="spinner" style="margin:0 auto 8px"></div>Đang tải dữ liệu...</td></tr>';
 
   try {
-    const res = await fetch('/api/portfolio');
+    const res = await fetch('/api/portfolio', { headers: reqHeaders() });
     const port = await res.json();
     
     const holdings = port.holdings || [];
@@ -2299,7 +2400,7 @@ async function openNotes(ticker) {
   document.getElementById('notes-modal').classList.add('active');
   
   try {
-    const res = await fetch(`/api/notes/${ticker}`);
+    const res = await fetch(`/api/notes/${ticker}`, { headers: reqHeaders() });
     const data = await res.json();
     noteTargets = data.targets || [];
     document.getElementById('notes-memo').value = data.memo || "";

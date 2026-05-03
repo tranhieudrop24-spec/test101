@@ -1,5 +1,5 @@
 {
-    "balance": 81046700.0,
+    "balance": 84314700.0,
     "holdings": [
         {
             "ticker": "VCB",
@@ -13,12 +13,12 @@
         },
         {
             "ticker": "PDR",
-            "quantity": 300,
+            "quantity": 500,
             "avgPrice": 16450.0
         },
         {
             "ticker": "HDC",
-            "quantity": 300,
+            "quantity": 600,
             "avgPrice": 19100.0
         },
         {
@@ -37,11 +37,6 @@
             "avgPrice": 27650.0
         },
         {
-            "ticker": "MSN",
-            "quantity": 160,
-            "avgPrice": 76800.0
-        },
-        {
             "ticker": "GVR",
             "quantity": 150,
             "avgPrice": 33700.0
@@ -55,17 +50,14 @@
             "ticker": "DXS",
             "quantity": 1500,
             "avgPrice": 7200.0
+        },
+        {
+            "ticker": "FPT",
+            "quantity": 100,
+            "avgPrice": 73074.0
         }
     ],
     "pending_orders": [
-        {
-            "id": "1777505392975",
-            "ticker": "FPT",
-            "action": "buy",
-            "quantity": 100,
-            "price": 73074.0,
-            "timestamp": "2026-04-30T06:29:52.975275"
-        },
         {
             "id": "1777512847383",
             "ticker": "VJC",
@@ -75,6 +67,28 @@
             "timestamp": "2026-04-30T08:34:07.383270"
         }
     ],
-    "trade_log": [],
+    "trade_log": [
+        {
+            "ticker": "MSN",
+            "action": "sell",
+            "quantity": 160,
+            "price": 76800.0,
+            "timestamp": "2026-05-04T04:28:35.800776"
+        },
+        {
+            "ticker": "HDC",
+            "action": "buy",
+            "quantity": 300,
+            "price": 19100.0,
+            "timestamp": "2026-05-04T04:35:07.428692"
+        },
+        {
+            "ticker": "PDR",
+            "action": "buy",
+            "quantity": 200,
+            "price": 16450.0,
+            "timestamp": "2026-05-04T04:37:34.598268"
+        }
+    ],
     "equity_history": []
 }
