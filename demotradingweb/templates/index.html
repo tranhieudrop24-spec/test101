@@ -1106,6 +1106,7 @@ function toggleSidebar(side) {
             const container = document.getElementById('chart-container');
             chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
             chart.timeScale().fitContent();
+      loadLines();
         }
     }, 320);
 }
@@ -1309,11 +1310,33 @@ let lineSeries = null;
 let measureStartPoint = null; // { time, value (price) }
 let eraseActive = false;
 
-function clearLines() {
-    drawnLines.forEach(l => {
-        try { candleSeries.removePriceLine(l); } catch(e){}
+function saveLines() {
+    const prices = drawnLines.map(l => l.options().price);
+    const key = `citrinex_lines_${currentUser.id}_${currentTicker}`;
+    localStorage.setItem(key, JSON.stringify(prices));
+}
+
+function loadLines() {
+    clearLinesNoSave();
+    const key = `citrinex_lines_${currentUser.id}_${currentTicker}`;
+    const saved = JSON.parse(localStorage.getItem(key) || '[]');
+    saved.forEach(p => {
+        const l = candleSeries.createPriceLine({
+            price: p, color: '#fcd535', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: true
+        });
+        drawnLines.push(l);
     });
+}
+
+function clearLinesNoSave() {
+    drawnLines.forEach(l => { try { candleSeries.removePriceLine(l); } catch(e){} });
     drawnLines = [];
+}
+
+
+function clearLines() {
+    clearLinesNoSave();
+    saveLines();
 }
 
 async function forceSyncPortfolio() {
@@ -1530,6 +1553,7 @@ function initChart() {
       if (closestLine) {
           candleSeries.removePriceLine(closestLine);
           drawnLines.splice(closestIdx, 1);
+          saveLines();
       }
       return;
     }
@@ -1543,12 +1567,13 @@ function initChart() {
     if (drawActive) {
       const newLine = candleSeries.createPriceLine({
         price: price,
-        color: '#a855f7',
+        color: '#fcd535', lineWidth: 1,
         lineWidth: 2,
         lineStyle: LightweightCharts.LineStyle.Solid,
         axisLabelVisible: true,
       });
       drawnLines.push(newLine);
+      saveLines();
       toggleDrawLine(); // auto turn off
       return;
     }
@@ -1661,6 +1686,7 @@ async function loadTicker(ticker) {
     loader.style.display = 'none';
     candleSeries.setData(data);
     chart.timeScale().fitContent();
+      loadLines();
     drawEntryMarkers(ticker, data); // Draw buy entries if holding exists
 
 
@@ -1732,7 +1758,7 @@ function drawEntryMarkers(ticker, data) {
     candleSeries.setMarkers([{
       time: c.time,
       position: 'belowBar',
-      color: '#a855f7',
+      color: '#fcd535', lineWidth: 1,
       shape: 'arrowUp',
       text: `BUY ${holding.quantity}CP @ ${(avgP/1000).toFixed(1)}K`,
       size: 1,
@@ -1775,7 +1801,7 @@ function drawEntryMarkers(ticker, data) {
     markers.push({
       time: candleTime,
       position: 'belowBar',
-      color: '#a855f7',
+      color: '#fcd535', lineWidth: 1,
       shape: 'arrowUp',
       text: `MUA ${s.qty}CP @ ${(avgBuyP/1000).toFixed(1)}K (+${curGrow}%)`,
       size: 1,
