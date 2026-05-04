@@ -1,5 +1,5 @@
 {
-    "balance": 57304700.0,
+    "balance": 45514700.0,
     "holdings": [
         {
             "ticker": "VCB",
@@ -70,6 +70,11 @@
             "ticker": "POW",
             "quantity": 1000,
             "avgPrice": 12650.0
+        },
+        {
+            "ticker": "PLX",
+            "quantity": 300,
+            "avgPrice": 39300.0
         }
     ],
     "pending_orders": [
@@ -124,6 +129,13 @@
             "quantity": 1000,
             "price": 12650.0,
             "timestamp": "2026-05-04T04:44:44.947416"
+        },
+        {
+            "ticker": "PLX",
+            "action": "buy",
+            "quantity": 300,
+            "price": 39300.0,
+            "timestamp": "2026-05-04T10:55:16.116402"
         }
     ],
     "equity_history": []

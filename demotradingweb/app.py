@@ -68,6 +68,7 @@ import time
 # Caching and State
 CHART_CACHE = {}
 MARKET_MAP_CACHE = {'data': None, 'time': 0}
+LIVE_PRICE_CACHE = {} # ticker -> {'price': float, 'change': float, 'time': float}
 
 def get_notes():
     uid = get_uid()
@@ -188,7 +189,8 @@ def bg_chart_updater():
                             cache_key = f"{ticker.upper()}_{res}"
                             CHART_CACHE[cache_key] = {
                                 'data': df.to_dict(orient='records'),
-                                'time': time.time()
+                                'time': time.time(),
+                                'last_update': datetime.now().strftime('%H:%M:%S')
                             }
                     except Exception as e:
                         print(f"Bg updater error for {ticker} {res}: {e}")
@@ -222,16 +224,25 @@ def bg_chart_updater():
                     
                     MARKET_MAP_CACHE['data'] = {
                         "labels": labels, "parents": parents, "values": values,
-                        "colors": colors, "customdata": customdata, "sectors_list": sectors_list
+                        "colors": colors, "customdata": customdata, "sectors_list": sectors_list,
+                        "last_update": datetime.now().strftime('%H:%M:%S')
                     }
                     MARKET_MAP_CACHE['time'] = time.time()
+
+                    # Update LIVE_PRICE_CACHE
+                    for _, row in df_clean.iterrows():
+                        LIVE_PRICE_CACHE[row['ticker']] = {
+                            'price': row['price'] * 1000 if row['price'] < 1000 else row['price'],
+                            'change': row['change'],
+                            'time': time.time()
+                        }
             except Exception as e:
                 print(f"Bg updater heatmap error: {e}")
                 
         except Exception as e:
             print(f"Bg updater loop error: {e}")
-        # Sleep for 4 hours
-        time.sleep(14400)
+        # Sleep for 1 minute (60s) to keep prices fresh
+        time.sleep(60)
 
 threading.Thread(target=bg_chart_updater, daemon=True).start()
 
@@ -262,6 +273,17 @@ def force_sync_api():
 def price_api(ticker):
     """Get latest price for a ticker."""
     ticker = ticker.upper()
+    
+    # Check Live Cache first for most accurate price
+    if ticker in LIVE_PRICE_CACHE:
+        lp = LIVE_PRICE_CACHE[ticker]
+        return jsonify({
+            "price": lp['price'],
+            "change": lp['change'],
+            "ticker": ticker,
+            "last_update": datetime.now().strftime('%H:%M:%S')
+        })
+
     cache_key = f"{ticker}_1D"
     if cache_key in CHART_CACHE:
         data = CHART_CACHE[cache_key]['data']
@@ -270,7 +292,12 @@ def price_api(ticker):
             price = float(last['close'])
             prev = float(data[-2]['close']) if len(data) > 1 else price
             change_pct = round((price - prev) / prev * 100, 2) if prev != 0 else 0
-            return jsonify({"price": price, "change": change_pct, "ticker": ticker})
+            return jsonify({
+                "price": price, 
+                "change": change_pct, 
+                "ticker": ticker,
+                "last_update": CHART_CACHE[cache_key].get('last_update', datetime.now().strftime('%H:%M:%S'))
+            })
 
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
@@ -292,7 +319,12 @@ def price_api(ticker):
             price *= 1000
             prev *= 1000
         change_pct = round((price - prev) / prev * 100, 2) if prev != 0 else 0
-        return jsonify({"price": price, "change": change_pct, "ticker": ticker})
+        return jsonify({
+            "price": price, 
+            "change": change_pct, 
+            "ticker": ticker,
+            "last_update": datetime.now().strftime('%H:%M:%S')
+        })
     except Exception as e:
         print(f"[price_api error] {e}")
         return jsonify({"price": 0, "change": 0})
@@ -306,9 +338,18 @@ def stock_api(ticker):
     
     cache_key = f"{ticker.upper()}_{fetch_res}"
     
-    # Use cache if available and less than 4 hours old
-    if cache_key in CHART_CACHE and (time.time() - CHART_CACHE[cache_key]['time']) < 14400:
+    # Use cache if available and less than 5 minutes old
+    if cache_key in CHART_CACHE and (time.time() - CHART_CACHE[cache_key]['time']) < 300:
         data = CHART_CACHE[cache_key]['data']
+        
+        # Patch last price if available in Live Cache
+        if ticker.upper() in LIVE_PRICE_CACHE and data:
+            lp = LIVE_PRICE_CACHE[ticker.upper()]
+            last = data[-1]
+            last['close'] = lp['price']
+            if lp['price'] > last['high']: last['high'] = lp['price']
+            if lp['price'] < last['low']: last['low'] = lp['price']
+
         # Resample if needed (from 1H to 4H, or 1D to 1W/1M)
         if res in ['4H', '1W', '1M']:
             df = pd.DataFrame(data)
@@ -322,8 +363,8 @@ def stock_api(ticker):
             elif res == '1M':
                 df = df.set_index('time').resample('MS').agg({'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'}).dropna().reset_index()
                 df['time'] = df['time'].dt.strftime('%Y-%m-%d')
-            return jsonify({"error": None, "data": df.to_dict(orient='records')})
-        return jsonify({"error": None, "data": data})
+            return jsonify({"error": None, "data": df.to_dict(orient='records'), "last_update": CHART_CACHE[cache_key].get('last_update')})
+        return jsonify({"error": None, "data": data, "last_update": CHART_CACHE[cache_key].get('last_update')})
 
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = '2023-01-01'
@@ -344,7 +385,11 @@ def stock_api(ticker):
             cache_df['time'] = cache_df['time'].apply(lambda x: int(x.timestamp()) - 7*3600)
         if not cache_df.empty and cache_df['close'].iloc[0] < 1000:
             for col in ['open', 'high', 'low', 'close']: cache_df[col] = cache_df[col] * 1000
-        CHART_CACHE[cache_key] = {'data': cache_df.to_dict(orient='records'), 'time': time.time()}
+        CHART_CACHE[cache_key] = {
+            'data': cache_df.to_dict(orient='records'), 
+            'time': time.time(),
+            'last_update': datetime.now().strftime('%H:%M:%S')
+        }
 
         # Simple Resample logic
         if res == '4H':
@@ -371,15 +416,26 @@ def stock_api(ticker):
             for col in ['open', 'high', 'low', 'close']:
                 df[col] = df[col] * 1000
                 
-        return jsonify({"error": None, "data": df.to_dict(orient='records')})
+        data_records = df.to_dict(orient='records')
+        if ticker.upper() in LIVE_PRICE_CACHE and data_records:
+            lp = LIVE_PRICE_CACHE[ticker.upper()]
+            data_records[-1]['close'] = lp['price']
+            if lp['price'] > data_records[-1]['high']: data_records[-1]['high'] = lp['price']
+            if lp['price'] < data_records[-1]['low']: data_records[-1]['low'] = lp['price']
+
+        return jsonify({
+            "error": None, 
+            "data": data_records,
+            "last_update": datetime.now().strftime('%H:%M:%S')
+        })
     except Exception as e:
         print(f"[stock_api error] {e}")
         return jsonify({"error": str(e), "data": []})
 
 @app.route('/api/market/all')
 def market_all():
-    # Use cache if less than 4 hours old
-    if MARKET_MAP_CACHE['data'] and (time.time() - MARKET_MAP_CACHE['time']) < 14400:
+    # Use cache if less than 5 minutes old
+    if MARKET_MAP_CACHE['data'] and (time.time() - MARKET_MAP_CACHE['time']) < 300:
         return jsonify(MARKET_MAP_CACHE['data'])
         
     try:
@@ -418,6 +474,7 @@ def market_all():
             "labels": labels, "parents": parents, "values": values,
             "colors": colors, "customdata": customdata, "sectors_list": sectors_list
         }
+        result["last_update"] = datetime.now().strftime('%H:%M:%S')
         MARKET_MAP_CACHE['data'] = result
         MARKET_MAP_CACHE['time'] = time.time()
         return jsonify(result)

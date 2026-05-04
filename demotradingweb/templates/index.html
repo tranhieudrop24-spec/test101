@@ -632,6 +632,7 @@ body{font-family:'Inter', -apple-system, sans-serif;background:var(--bg);color:v
         <div class="ticker-display" id="hdr-ticker">—</div>
         <div class="ticker-price" id="hdr-price">—</div>
         <div class="ticker-change flat" id="hdr-change">—</div>
+        <div id="hdr-last-update" style="font-size:0.75rem;color:var(--dim);margin-left:8px"></div>
         <button class="btn-info" onclick="showCompanyInfo()">&#x2139; Summary</button>
         <button class="btn-info" onclick="openNotes(currentTicker)">&#x1F4CC; Notes</button>
         <button class="btn-ruler" onclick="toggleRuler()" id="btn-ruler" title="Đo %">📏 Ruler</button>
@@ -1686,7 +1687,15 @@ async function loadTicker(ticker) {
     loader.style.display = 'none';
     candleSeries.setData(data);
     chart.timeScale().fitContent();
-      loadLines();
+    
+    // Show last update time
+    const lastUpdate = json.last_update;
+    const updEl = document.getElementById('hdr-last-update');
+    if (updEl) {
+        updEl.textContent = lastUpdate ? `Cập nhật: ${lastUpdate}` : '';
+    }
+
+    loadLines();
     drawEntryMarkers(ticker, data); // Draw buy entries if holding exists
 
 
@@ -2095,13 +2104,23 @@ async function reloadWatchlistPrices() {
     const promises = watchlist.map(ticker => 
       fetch(`/api/price/${ticker}`).then(res => res.json()).then(data => {
         if(data.price) {
-          priceCache[ticker] = { price: data.price, change: data.change };
+          priceCache[ticker] = { 
+            price: data.price, 
+            change: data.change, 
+            last_update: data.last_update 
+          };
+          // If this is the current ticker, update the header time too
+          if (ticker === currentTicker) {
+            const updEl = document.getElementById('hdr-last-update');
+            if (updEl && data.last_update) updEl.textContent = `Cập nhật: ${data.last_update}`;
+          }
         }
       }).catch(e => console.error('Failed to load', ticker, e))
     );
     await Promise.all(promises);
     
     renderWatchlist();
+    renderPortfolio();
     updateBalanceUI();
     const pvEl = document.getElementById('view-portfolio');
     if(pvEl && pvEl.style.display !== 'none' && pvEl.style.display !== '') {
