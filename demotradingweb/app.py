@@ -162,6 +162,24 @@ if JSONBIN_URL:
         if 'notes' in cloud_data:
             with open(NOTES_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['notes'], f, indent=4, ensure_ascii=False)
 
+def bg_keep_alive():
+    """Ping the app itself to prevent Render from sleeping (Free Tier)."""
+    self_url = os.environ.get('RENDER_EXTERNAL_URL')
+    if not self_url:
+        print("Keep-alive disabled: RENDER_EXTERNAL_URL not set")
+        return
+    
+    print(f"Keep-alive started for: {self_url}")
+    while True:
+        try:
+            time.sleep(600) # Ping every 10 minutes
+            res = requests.get(f"{self_url}/ping", timeout=10)
+            print(f"Keep-alive ping sent: {res.status_code}")
+        except Exception as e:
+            print(f"Keep-alive error: {e}")
+
+threading.Thread(target=bg_keep_alive, daemon=True).start()
+
 def bg_chart_updater():
     print("Background chart updater started...")
     while True:
@@ -252,6 +270,10 @@ threading.Thread(target=bg_chart_updater, daemon=True).start()
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/ping')
+def ping():
+    return "pong", 200
 
 @app.route('/api/force-sync', methods=['POST'])
 def force_sync_api():
