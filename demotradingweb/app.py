@@ -162,6 +162,26 @@ if JSONBIN_URL:
         if 'notes' in cloud_data:
             with open(NOTES_FILE, 'w', encoding='utf-8') as f: json.dump(cloud_data['notes'], f, indent=4, ensure_ascii=False)
 
+def warm_up_live_prices():
+    """Fetch heatmap ngay khi startup để LIVE_PRICE_CACHE có data sớm nhất."""
+    try:
+        print("Warming up live price cache...")
+        df_heatmap = fr_trade_heatmap(symbol='HOSE', report_type='Value')
+        if df_heatmap is not None and not df_heatmap.empty:
+            for _, row in df_heatmap.iterrows():
+                t_key = str(row['stockSymbol']).strip().upper()
+                price = float(row['matchedPrice'])
+                LIVE_PRICE_CACHE[t_key] = {
+                    'price': price * 1000 if price < 1000 else price,
+                    'change': float(row['priceChangePercent']),
+                    'time': time.time()
+                }
+            print(f"Warmed up {len(LIVE_PRICE_CACHE)} tickers")
+    except Exception as e:
+        print(f"Warm up error: {e}")
+
+threading.Thread(target=warm_up_live_prices, daemon=True).start()
+
 def bg_keep_alive():
     """Ping the app itself to prevent Render from sleeping (Free Tier)."""
     self_url = os.environ.get('RENDER_EXTERNAL_URL')
@@ -172,7 +192,7 @@ def bg_keep_alive():
     print(f"Keep-alive started for: {self_url}")
     while True:
         try:
-            time.sleep(600) # Ping every 10 minutes
+            time.sleep(480) # Ping every 8 minutes
             res = requests.get(f"{self_url}/ping", timeout=10)
             print(f"Keep-alive ping sent: {res.status_code}")
         except Exception as e:
@@ -294,34 +314,40 @@ def force_sync_api():
         return jsonify({"status": "error", "message": "Lỗi đồng bộ từ Cloud."})
     return jsonify({"status": "error", "message": "Nút Sync chỉ có tác dụng khi chạy trên Web thật (Render.com) có cấu hình JSONBIN."})
 
+def get_realtime_price(ticker):
+    """Lấy giá realtime từ cache tốt nhất hiện có."""
+    ticker = ticker.upper()
+    if ticker in LIVE_PRICE_CACHE:
+        return LIVE_PRICE_CACHE[ticker]['price'], LIVE_PRICE_CACHE[ticker]['change']
+    # Fallback về market map cache
+    if MARKET_MAP_CACHE.get('data'):
+        labels = MARKET_MAP_CACHE['data'].get('labels', [])
+        customdata = MARKET_MAP_CACHE['data'].get('customdata', [])
+        for i, label in enumerate(labels):
+            if label == ticker and customdata[i].get('price', 0) > 0:
+                p = customdata[i]['price']
+                if p > 0 and p < 1000:
+                    p *= 1000
+                return p, customdata[i]['change']
+    return None, None
+
 @app.route('/api/price/<ticker>')
 def price_api(ticker):
     """Get latest price for a ticker."""
     ticker = ticker.strip().upper()
     
-    # Check Live Cache first for most accurate price
-    if ticker in LIVE_PRICE_CACHE:
-        lp = LIVE_PRICE_CACHE[ticker]
+    # 1 & 2. LIVE_PRICE_CACHE & MARKET_MAP_CACHE (realtime)
+    price, change = get_realtime_price(ticker)
+    if price is not None:
+        last_update = MARKET_MAP_CACHE['data'].get('last_update') if MARKET_MAP_CACHE.get('data') else datetime.now().strftime('%H:%M:%S')
         return jsonify({
-            "price": lp['price'],
-            "change": lp['change'],
+            "price": price,
+            "change": change,
             "ticker": ticker,
-            "last_update": datetime.now().strftime('%H:%M:%S')
+            "last_update": last_update or datetime.now().strftime('%H:%M:%S')
         })
 
-    if MARKET_MAP_CACHE.get('data') and 'customdata' in MARKET_MAP_CACHE['data']:
-        for item in MARKET_MAP_CACHE['data']['customdata']:
-            if item.get('ticker') == ticker:
-                p = item.get('price', 0)
-                if p > 0 and p < 1000:
-                    p *= 1000
-                return jsonify({
-                    "price": p,
-                    "change": item.get('change', 0),
-                    "ticker": ticker,
-                    "last_update": MARKET_MAP_CACHE['data'].get('last_update', datetime.now().strftime('%H:%M:%S'))
-                })
-
+    # 3. CHART_CACHE fallback (giá lịch sử, có thể stale)
     cache_key = f"{ticker}_1D"
     if cache_key in CHART_CACHE:
         data = CHART_CACHE[cache_key]['data']
@@ -380,28 +406,13 @@ def stock_api(ticker):
     if cache_key in CHART_CACHE and (time.time() - CHART_CACHE[cache_key]['time']) < 300:
         data = CHART_CACHE[cache_key]['data']
         
-        # Patch last price if available in Live Cache
-        patched = False
-        if ticker.upper() in LIVE_PRICE_CACHE and data:
-            lp = LIVE_PRICE_CACHE[ticker.upper()]
+        # Patch last price if available
+        p, _ = get_realtime_price(ticker)
+        if p is not None and data:
             last = data[-1]
-            last['close'] = lp['price']
-            if lp['price'] > last['high']: last['high'] = lp['price']
-            if lp['price'] < last['low']: last['low'] = lp['price']
-            patched = True
-            
-        if not patched and MARKET_MAP_CACHE.get('data') and 'customdata' in MARKET_MAP_CACHE['data'] and data:
-            for item in MARKET_MAP_CACHE['data']['customdata']:
-                if item.get('ticker') == ticker.upper():
-                    p = item.get('price', 0)
-                    if p > 0 and p < 1000:
-                        p *= 1000
-                    if p > 0:
-                        last = data[-1]
-                        last['close'] = p
-                        if p > last['high']: last['high'] = p
-                        if p < last['low']: last['low'] = p
-                    break
+            last['close'] = p
+            if p > last['high']: last['high'] = p
+            if p < last['low']: last['low'] = p
 
         # Resample if needed (from 1H to 4H, or 1D to 1W/1M)
         if res in ['4H', '1W', '1M']:
@@ -470,25 +481,12 @@ def stock_api(ticker):
                 df[col] = df[col] * 1000
                 
         data_records = df.to_dict(orient='records')
-        patched = False
-        if ticker.upper() in LIVE_PRICE_CACHE and data_records:
-            lp = LIVE_PRICE_CACHE[ticker.upper()]
-            data_records[-1]['close'] = lp['price']
-            if lp['price'] > data_records[-1]['high']: data_records[-1]['high'] = lp['price']
-            if lp['price'] < data_records[-1]['low']: data_records[-1]['low'] = lp['price']
-            patched = True
-
-        if not patched and MARKET_MAP_CACHE.get('data') and 'customdata' in MARKET_MAP_CACHE['data'] and data_records:
-            for item in MARKET_MAP_CACHE['data']['customdata']:
-                if item.get('ticker') == ticker.upper():
-                    p = item.get('price', 0)
-                    if p > 0 and p < 1000:
-                        p *= 1000
-                    if p > 0:
-                        data_records[-1]['close'] = p
-                        if p > data_records[-1]['high']: data_records[-1]['high'] = p
-                        if p < data_records[-1]['low']: data_records[-1]['low'] = p
-                    break
+        p, _ = get_realtime_price(ticker)
+        if p is not None and data_records:
+            last = data_records[-1]
+            last['close'] = p
+            if p > last['high']: last['high'] = p
+            if p < last['low']: last['low'] = p
 
         return jsonify({
             "error": None, 
@@ -813,6 +811,13 @@ def match_orders_api():
                     day_prices[ticker] = None
                 
         price_data = day_prices.get(ticker)
+        
+        # Patch realtime price into day_prices for accurate matching
+        p, _ = get_realtime_price(ticker)
+        if p is not None and price_data:
+            if p < price_data['low']: price_data['low'] = p
+            if p > price_data['high']: price_data['high'] = p
+
         matched = False
         
         if price_data:
