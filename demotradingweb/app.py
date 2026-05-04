@@ -309,6 +309,19 @@ def price_api(ticker):
             "last_update": datetime.now().strftime('%H:%M:%S')
         })
 
+    if MARKET_MAP_CACHE.get('data') and 'customdata' in MARKET_MAP_CACHE['data']:
+        for item in MARKET_MAP_CACHE['data']['customdata']:
+            if item.get('ticker') == ticker:
+                p = item.get('price', 0)
+                if p > 0 and p < 1000:
+                    p *= 1000
+                return jsonify({
+                    "price": p,
+                    "change": item.get('change', 0),
+                    "ticker": ticker,
+                    "last_update": MARKET_MAP_CACHE['data'].get('last_update', datetime.now().strftime('%H:%M:%S'))
+                })
+
     cache_key = f"{ticker}_1D"
     if cache_key in CHART_CACHE:
         data = CHART_CACHE[cache_key]['data']
@@ -368,12 +381,27 @@ def stock_api(ticker):
         data = CHART_CACHE[cache_key]['data']
         
         # Patch last price if available in Live Cache
+        patched = False
         if ticker.upper() in LIVE_PRICE_CACHE and data:
             lp = LIVE_PRICE_CACHE[ticker.upper()]
             last = data[-1]
             last['close'] = lp['price']
             if lp['price'] > last['high']: last['high'] = lp['price']
             if lp['price'] < last['low']: last['low'] = lp['price']
+            patched = True
+            
+        if not patched and MARKET_MAP_CACHE.get('data') and 'customdata' in MARKET_MAP_CACHE['data'] and data:
+            for item in MARKET_MAP_CACHE['data']['customdata']:
+                if item.get('ticker') == ticker.upper():
+                    p = item.get('price', 0)
+                    if p > 0 and p < 1000:
+                        p *= 1000
+                    if p > 0:
+                        last = data[-1]
+                        last['close'] = p
+                        if p > last['high']: last['high'] = p
+                        if p < last['low']: last['low'] = p
+                    break
 
         # Resample if needed (from 1H to 4H, or 1D to 1W/1M)
         if res in ['4H', '1W', '1M']:
@@ -442,11 +470,25 @@ def stock_api(ticker):
                 df[col] = df[col] * 1000
                 
         data_records = df.to_dict(orient='records')
+        patched = False
         if ticker.upper() in LIVE_PRICE_CACHE and data_records:
             lp = LIVE_PRICE_CACHE[ticker.upper()]
             data_records[-1]['close'] = lp['price']
             if lp['price'] > data_records[-1]['high']: data_records[-1]['high'] = lp['price']
             if lp['price'] < data_records[-1]['low']: data_records[-1]['low'] = lp['price']
+            patched = True
+
+        if not patched and MARKET_MAP_CACHE.get('data') and 'customdata' in MARKET_MAP_CACHE['data'] and data_records:
+            for item in MARKET_MAP_CACHE['data']['customdata']:
+                if item.get('ticker') == ticker.upper():
+                    p = item.get('price', 0)
+                    if p > 0 and p < 1000:
+                        p *= 1000
+                    if p > 0:
+                        data_records[-1]['close'] = p
+                        if p > data_records[-1]['high']: data_records[-1]['high'] = p
+                        if p < data_records[-1]['low']: data_records[-1]['low'] = p
+                    break
 
         return jsonify({
             "error": None, 
