@@ -193,17 +193,21 @@ def bg_chart_updater():
                     df_clean['price'] = pd.to_numeric(df_clean['price'], errors='coerce')
                     df_clean['change'] = pd.to_numeric(df_clean['change'], errors='coerce')
                     df_clean['value'] = pd.to_numeric(df_clean['value'], errors='coerce')
-                    df_clean = df_clean.fillna(0).sort_values(by='value', ascending=False).head(150)
+                    df_clean = df_clean.fillna(0)
                     
-                    # Update LIVE_PRICE_CACHE immediately
+                    # Update LIVE_PRICE_CACHE immediately for ALL tickers
                     for _, row in df_clean.iterrows():
-                        LIVE_PRICE_CACHE[row['ticker']] = {
+                        t_key = str(row['ticker']).strip().upper()
+                        LIVE_PRICE_CACHE[t_key] = {
                             'price': row['price'] * 1000 if row['price'] < 1000 else row['price'],
                             'change': row['change'],
                             'time': time.time()
                         }
-
-                    df_merged = pd.merge(df_clean, df_sectors_cache[['ticker', 'industry']], on='ticker', how='left')
+                    
+                    # Limit to top 150 for Market Map display performance
+                    df_map = df_clean.sort_values(by='value', ascending=False).head(150)
+                    
+                    df_merged = pd.merge(df_map, df_sectors_cache[['ticker', 'industry']], on='ticker', how='left')
                     df_merged['industry'] = df_merged['industry'].fillna('Khác')
                     df_merged = df_merged.rename(columns={'industry': 'sector'})
                     sectors_list = sorted(list(df_merged['sector'].unique()))
@@ -293,7 +297,7 @@ def force_sync_api():
 @app.route('/api/price/<ticker>')
 def price_api(ticker):
     """Get latest price for a ticker."""
-    ticker = ticker.upper()
+    ticker = ticker.strip().upper()
     
     # Check Live Cache first for most accurate price
     if ticker in LIVE_PRICE_CACHE:
