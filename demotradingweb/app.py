@@ -184,6 +184,48 @@ def bg_chart_updater():
     print("Background chart updater started...")
     while True:
         try:
+            # 1. Fetch Live Prices FIRST (Fast, whole market)
+            try:
+                df_heatmap = fr_trade_heatmap(symbol='HOSE', report_type='Value')
+                if df_heatmap is not None and not df_heatmap.empty:
+                    cols = {'stockSymbol':'ticker', 'companyNameVi':'name', 'matchedPrice':'price', 'priceChangePercent':'change', 'nmTotalTradedValue':'value'}
+                    df_clean = df_heatmap[list(cols.keys())].rename(columns=cols)
+                    df_clean['price'] = pd.to_numeric(df_clean['price'], errors='coerce')
+                    df_clean['change'] = pd.to_numeric(df_clean['change'], errors='coerce')
+                    df_clean['value'] = pd.to_numeric(df_clean['value'], errors='coerce')
+                    df_clean = df_clean.fillna(0).sort_values(by='value', ascending=False).head(150)
+                    
+                    # Update LIVE_PRICE_CACHE immediately
+                    for _, row in df_clean.iterrows():
+                        LIVE_PRICE_CACHE[row['ticker']] = {
+                            'price': row['price'] * 1000 if row['price'] < 1000 else row['price'],
+                            'change': row['change'],
+                            'time': time.time()
+                        }
+
+                    df_merged = pd.merge(df_clean, df_sectors_cache[['ticker', 'industry']], on='ticker', how='left')
+                    df_merged['industry'] = df_merged['industry'].fillna('Khác')
+                    df_merged = df_merged.rename(columns={'industry': 'sector'})
+                    sectors_list = sorted(list(df_merged['sector'].unique()))
+                    labels, parents, values, colors, customdata = ["HOSE"], [""], [df_merged['value'].sum()], [0], [{"ticker": "", "price": 0, "change": 0}]
+                    sector_grouped = df_merged.groupby('sector')['value'].sum().reset_index()
+                    for _, row in sector_grouped.iterrows():
+                        if row['value'] > 0:
+                            labels.append(row['sector']); parents.append("HOSE"); values.append(row['value']); colors.append(0); customdata.append({"ticker": "", "price": 0, "change": 0})
+                    for _, row in df_merged.iterrows():
+                        if row['value'] > 0:
+                            labels.append(row['ticker']); parents.append(row['sector']); values.append(row['value']); colors.append(row['change']); customdata.append({"ticker": row['ticker'], "price": row['price'], "change": row['change']})
+                    
+                    MARKET_MAP_CACHE['data'] = {
+                        "labels": labels, "parents": parents, "values": values,
+                        "colors": colors, "customdata": customdata, "sectors_list": sectors_list,
+                        "last_update": datetime.now().strftime('%H:%M:%S')
+                    }
+                    MARKET_MAP_CACHE['time'] = time.time()
+            except Exception as e:
+                print(f"Bg updater heatmap error: {e}")
+
+            # 2. Fetch Historical Data (Slow, per ticker)
             wl = get_watchlist()
             port = get_portfolio()
             port_tickers = [h['ticker'] for h in port.get('holdings', [])]
@@ -213,49 +255,6 @@ def bg_chart_updater():
                     except Exception as e:
                         print(f"Bg updater error for {ticker} {res}: {e}")
                     time.sleep(1) # avoid rate limit
-            
-            # Fetch and Cache Market Map
-            try:
-                df_heatmap = fr_trade_heatmap(symbol='HOSE', report_type='Value')
-                if df_heatmap is not None and not df_heatmap.empty:
-                    cols = {'stockSymbol':'ticker', 'companyNameVi':'name', 'matchedPrice':'price', 'priceChangePercent':'change', 'nmTotalTradedValue':'value'}
-                    df_clean = df_heatmap[list(cols.keys())].rename(columns=cols)
-                    df_clean['price'] = pd.to_numeric(df_clean['price'], errors='coerce')
-                    df_clean['change'] = pd.to_numeric(df_clean['change'], errors='coerce')
-                    df_clean['value'] = pd.to_numeric(df_clean['value'], errors='coerce')
-                    df_clean = df_clean.fillna(0).sort_values(by='value', ascending=False).head(150)
-                    df_merged = pd.merge(df_clean, df_sectors_cache[['ticker', 'industry']], on='ticker', how='left')
-                    df_merged['industry'] = df_merged['industry'].fillna('Khác')
-                    df_merged = df_merged.rename(columns={'industry': 'sector'})
-                    
-                    sectors_list = sorted(list(df_merged['sector'].unique()))
-                    labels, parents, values, colors, customdata = ["HOSE"], [""], [df_merged['value'].sum()], [0], [{"ticker": "", "price": 0, "change": 0}]
-                    
-                    sector_grouped = df_merged.groupby('sector')['value'].sum().reset_index()
-                    for _, row in sector_grouped.iterrows():
-                        if row['value'] > 0:
-                            labels.append(row['sector']); parents.append("HOSE"); values.append(row['value']); colors.append(0); customdata.append({"ticker": "", "price": 0, "change": 0})
-                            
-                    for _, row in df_merged.iterrows():
-                        if row['value'] > 0:
-                            labels.append(row['ticker']); parents.append(row['sector']); values.append(row['value']); colors.append(row['change']); customdata.append({"ticker": row['ticker'], "price": row['price'], "change": row['change']})
-                    
-                    MARKET_MAP_CACHE['data'] = {
-                        "labels": labels, "parents": parents, "values": values,
-                        "colors": colors, "customdata": customdata, "sectors_list": sectors_list,
-                        "last_update": datetime.now().strftime('%H:%M:%S')
-                    }
-                    MARKET_MAP_CACHE['time'] = time.time()
-
-                    # Update LIVE_PRICE_CACHE
-                    for _, row in df_clean.iterrows():
-                        LIVE_PRICE_CACHE[row['ticker']] = {
-                            'price': row['price'] * 1000 if row['price'] < 1000 else row['price'],
-                            'change': row['change'],
-                            'time': time.time()
-                        }
-            except Exception as e:
-                print(f"Bg updater heatmap error: {e}")
                 
         except Exception as e:
             print(f"Bg updater loop error: {e}")
@@ -593,6 +592,13 @@ def portfolio_api():
                     "id": order_id, "ticker": ticker, "action": "buy", "quantity": quantity, "price": price, "timestamp": datetime.now().isoformat()
                 })
                 save_portfolio(portfolio)
+                
+                # Auto-add to watchlist even for limit orders
+                wl = get_watchlist()
+                if ticker not in wl:
+                    wl.append(ticker)
+                    save_watchlist(wl)
+
                 return jsonify({"status": "success", "message": f"Đã đặt lệnh CHỜ MUA {quantity} {ticker} giá {price:,.0f}₫", "portfolio": portfolio})
             
             elif action == 'sell':
@@ -631,6 +637,13 @@ def portfolio_api():
                     "ticker": ticker, "action": "buy", "quantity": quantity, "price": price, "timestamp": datetime.now().isoformat()
                 })
                 save_portfolio(portfolio)
+                
+                # Auto-add to watchlist on buy
+                wl = get_watchlist()
+                if ticker not in wl:
+                    wl.append(ticker)
+                    save_watchlist(wl)
+
                 return jsonify({"status": "success", "message": f"Khớp lệnh MUA {quantity} {ticker}!", "portfolio": portfolio})
 
             elif action == 'sell':
